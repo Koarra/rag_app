@@ -1,30 +1,20 @@
-def dicts_to_text(class_list, output_file="people.txt"):
-    lines = []
-    for d in class_list:
-        for person, attrs in d.items():
-            lines.append(f"{person}:")
-            if isinstance(attrs, dict):
-                for k, v in attrs.items():
-                    lines.append(f"  - {k}: {v}")
-            lines.append("")  # blank line after each person
+import json
+import csv
 
-    # Join everything into a string
-    text_output = "\n".join(lines)
+# Load JSON
+with open("data.json", "r") as f:
+    data = json.load(f)
 
-    # Write to file
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(text_output)
+# Determine CSV headers
+fieldnames = ["person"] + list(next(iter(data.values())).keys())
 
-    return text_output
+# Write CSV
+with open("data.csv", "w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    writer.writeheader()
+    for person, info in data.items():
+        row = {"person": person}
+        row.update(info)
+        writer.writerow(row)
 
-
-# Example usage
-class_list = [
-    {"Alice": {"age": 25, "city": "Paris", "address": "123 Main St"}},
-    {"Bob": {"age": 30, "city": "London"}},
-    {"Charlie": {"age": 40, "city": "Berlin", "address": "456 Park Ave"}}
-]
-
-txt = dicts_to_text(class_list, "people.txt")
-print(txt)
-
+print("Saved to data.csv")
