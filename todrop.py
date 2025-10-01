@@ -1,26 +1,40 @@
+import csv
+from openpyxl import Workbook
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
-import json
-import pandas as pd
+# 1️⃣ Load CSV data
+csv_file = "data.csv"
+data = []
+with open(csv_file, "r", encoding="utf-8") as f:
+    reader = csv.reader(f)
+    for row in reader:
+        data.append(row)
 
-# Load JSON
-with open("data.json", "r", encoding="utf-8") as f:
-    data = json.load(f)
+# 2️⃣ Create a workbook and add data
+wb = Workbook()
+ws = wb.active
+ws.title = "Sheet1"
 
-# Prepare rows for the DataFrame
-rows = []
-for entry in data:
-    for person, info in entry.items():
-        row = {"person": person}
-        row.update(info)
-        rows.append(row)
+for row in data:
+    ws.append(row)
 
-# Create DataFrame
-df = pd.DataFrame(rows)
+# 3️⃣ Define the table range
+# Assuming the first row is headers
+num_rows = len(data)
+num_cols = len(data[0])
+table_range = f"A1:{chr(64+num_cols)}{num_rows}"
 
-# Ensure the column order
-df = df[["person", "age", "city"]]
+# 4️⃣ Create a Table
+table = Table(displayName="MyTable", ref=table_range)
 
-# Save to Excel
-df.to_excel("data.xlsx", index=False)
+# Optional: add style
+style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False,
+                       showLastColumn=False, showRowStripes=True, showColumnStripes=True)
+table.tableStyleInfo = style
 
-print("Saved data.xlsx with columns: person, age, city")
+# 5️⃣ Add table to worksheet
+ws.add_table(table)
+
+# 6️⃣ Save Excel file
+wb.save("data.xlsx")
+print("Saved data.xlsx with an Excel table!")
