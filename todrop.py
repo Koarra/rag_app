@@ -32,3 +32,9 @@ gi → go back to last insert position.
 d} → delete paragraph.
 yap → yank a paragraph.
 dap → delete a paragraph.
+
+
+o : create blank lien below
+3yw: copy next 3 words
+yy: copy the whole line 
+
