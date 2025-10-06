@@ -116,8 +116,6 @@ class DocumentProcessor:
         
         print(f"Processing: {file_path.name}")
         
-        header = f"\n{'='*80}\nFile: {file_path.name}\n{'='*80}\n\n"
-        
         if ext == '.docx':
             content = self.extract_from_docx(str(file_path))
         elif ext == '.pdf':
@@ -125,7 +123,7 @@ class DocumentProcessor:
         else:
             content = f"Unsupported file format: {ext}"
         
-        return header + content
+        return content
     
     def process_files(self, file_paths: List[str]) -> str:
         results = []
