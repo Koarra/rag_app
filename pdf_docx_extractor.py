@@ -125,13 +125,15 @@ class DocumentProcessor:
         
         return content
     
-    def process_files(self, file_paths: List[str]) -> str:
+    def process_files(self, file_paths: List[str]) -> List[tuple]:
         results = []
         
         for file_path in file_paths:
-            results.append(self.process_file(file_path))
+            content = self.process_file(file_path)
+            output_name = Path(file_path).stem + '.txt'
+            results.append((output_name, content))
         
-        return "\n\n".join(results)
+        return results
 
 
 def main():
@@ -157,7 +159,8 @@ def main():
     args = parser.parse_args()
     
     if args.output is None:
-        args.output = 'extracted_text.txt'
+        first_file = Path(args.files[0])
+        args.output = first_file.stem + '.txt'
     
     processor = DocumentProcessor(use_ocr=not args.no_ocr)
     
