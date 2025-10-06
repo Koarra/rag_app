@@ -68,7 +68,8 @@ class DocumentProcessor:
                 print(f"No text found in PDF. Running full OCR on {file_path}")
                 text_content.append(self._ocr_entire_pdf(file_path))
             
-            return "\n\n".join(text_content)
+            result = "\n\n".join(text_content)
+            return result
         
         except Exception as e:
             return f"Error processing PDF file {file_path}: {str(e)}"
@@ -165,16 +166,23 @@ def main():
     
     if args.output:
         output_path = Path(args.output).resolve()
-        combined_text = "\n\n".join([str(content) for _, content in results])
+        combined_parts = []
+        for _, content in results:
+            if isinstance(content, str):
+                combined_parts.append(content)
+        combined_text = "\n\n".join(combined_parts)
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(combined_text)
         print(f"\nAll text extracted and saved to: {output_path}")
     else:
         for output_name, content in results:
             output_path = Path(output_name).resolve()
-            with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(str(content))
-            print(f"Text extracted and saved to: {output_path}")
+            if isinstance(content, str):
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                print(f"Text extracted and saved to: {output_path}")
+            else:
+                print(f"Error: Content for {output_name} is not a string: {type(content)}")
 
 
 if __name__ == "__main__":
