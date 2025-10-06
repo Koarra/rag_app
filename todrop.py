@@ -35,7 +35,8 @@ dap → delete a paragraph.
 dd delete a line 
 ggVG to select all 
 * to go next word iteration
-          
+e: next word
+b: previous word
 
 o : create blank lien below
 3yw: copy next 3 words
