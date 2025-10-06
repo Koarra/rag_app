@@ -40,7 +40,8 @@ class DocumentProcessor:
                     row_text = [cell.text.strip() for cell in row.cells]
                     text_content.append(" | ".join(row_text))
             
-            return "\n".join(text_content)
+            result = "\n".join(text_content)
+            return result
         
         except Exception as e:
             return f"Error processing DOCX file {file_path}: {str(e)}"
