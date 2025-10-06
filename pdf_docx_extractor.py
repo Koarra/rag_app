@@ -152,24 +152,28 @@ def main():
     )
     parser.add_argument(
         '-o', '--output',
-        default='extracted_text.txt',
-        help='Output file path (default: extracted_text.txt)'
+        default=None,
+        help='Output file path for combined output (default: separate files for each input)'
     )
     
     args = parser.parse_args()
     
-    if args.output is None:
-        first_file = Path(args.files[0])
-        args.output = first_file.stem + '.txt'
-    
     processor = DocumentProcessor(use_ocr=not args.no_ocr)
     
-    extracted_text = processor.process_files(args.files)
+    results = processor.process_files(args.files)
     
-    output_path = Path(args.output).resolve()
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(extracted_text)
-    print(f"\nText extracted and saved to: {output_path}")
+    if args.output:
+        output_path = Path(args.output).resolve()
+        combined_text = "\n\n".join([str(content) for _, content in results])
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(combined_text)
+        print(f"\nAll text extracted and saved to: {output_path}")
+    else:
+        for output_name, content in results:
+            output_path = Path(output_name).resolve()
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(str(content))
+            print(f"Text extracted and saved to: {output_path}")
 
 
 if __name__ == "__main__":
