@@ -132,7 +132,8 @@ class DocumentProcessor:
         
         for file_path in file_paths:
             content = self.process_file(file_path)
-            output_name = Path(file_path).stem + '.txt'
+            file_stem = Path(file_path).stem
+            output_name = f'output_{file_stem}.txt'
             results.append((output_name, content))
         
         return results
