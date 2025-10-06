@@ -158,13 +158,17 @@ def main():
     
     args = parser.parse_args()
     
+    if args.output is None:
+        args.output = 'extracted_text.txt'
+    
     processor = DocumentProcessor(use_ocr=not args.no_ocr)
     
     extracted_text = processor.process_files(args.files)
     
-    with open(args.output, 'w', encoding='utf-8') as f:
+    output_path = Path(args.output).resolve()
+    with open(output_path, 'w', encoding='utf-8') as f:
         f.write(extracted_text)
-    print(f"\nText extracted and saved to: {args.output}")
+    print(f"\nText extracted and saved to: {output_path}")
 
 
 if __name__ == "__main__":
