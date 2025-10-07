@@ -28,6 +28,27 @@ entity_list = list(set([entity['text'] for entity in entities]))
 print(f"Found {len(entity_list)} unique entities")
 print(f"Entities: {entity_list}\n")
 
+
+# Define simple JSON schema for structured output
+response_format = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "entity_description",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "A brief description of the entity based on the context"
+                }
+            },
+            "required": ["description"],
+            "additionalProperties": False
+        }
+    }
+}
+
 # Generate descriptions for each entity using OpenAI
 entity_descriptions = {}
 
