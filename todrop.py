@@ -37,6 +37,10 @@ ggVG to select all
 * to go next word iteration
 e: next word
 b: previous word
+ddp: move line to the line below 
+dd3p 
+
+ddkp: move line above
 
 o : create blank lien below
 3yw: copy next 3 words
