@@ -46,3 +46,9 @@ o : create blank lien below
 3yw: copy next 3 words
 yy: copy the whole line 
 
+
+In order to select multiple line and modify the same position: 
+          ctrl + v 
+          j or k 
+          then shift I to write
+
