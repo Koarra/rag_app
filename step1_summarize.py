@@ -1,5 +1,6 @@
 """
 STEP 1: Extract text from document and generate summary
+Supports PDF (with OCR for scanned documents) and DOCX files
 
 Usage: python step1_summarize.py <input_file.pdf>
 Output: Creates summary.json with the document summary
@@ -11,6 +12,15 @@ from pathlib import Path
 from openai import OpenAI
 from docx import Document
 import PyPDF2
+
+# OCR imports (optional - will work without OCR if not installed)
+try:
+    from pdf2image import convert_from_path
+    import pytesseract
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
+    print("Note: OCR not available. Install with: pip install pdf2image pytesseract")
 
 
 def extract_text_from_docx(file_path):
@@ -30,16 +40,72 @@ def extract_text_from_docx(file_path):
     return "\n".join(text_parts)
 
 
+def ocr_pdf_page(pdf_path, page_num):
+    """Extract text from a PDF page using OCR"""
+    if not OCR_AVAILABLE:
+        return ""
+
+    try:
+        images = convert_from_path(
+            pdf_path,
+            first_page=page_num + 1,
+            last_page=page_num + 1,
+            dpi=300
+        )
+
+        if images:
+            return pytesseract.image_to_string(images[0])
+        return ""
+
+    except Exception as e:
+        print(f"OCR error on page {page_num + 1}: {e}")
+        return ""
+
+
+def ocr_entire_pdf(pdf_path):
+    """Extract text from entire PDF using OCR"""
+    if not OCR_AVAILABLE:
+        return ""
+
+    try:
+        images = convert_from_path(pdf_path, dpi=300)
+        text_parts = []
+
+        for i, img in enumerate(images):
+            print(f"OCR processing page {i + 1}/{len(images)}...")
+            text = pytesseract.image_to_string(img)
+            if text.strip():
+                text_parts.append(text)
+
+        return "\n\n".join(text_parts)
+
+    except Exception as e:
+        print(f"OCR error: {e}")
+        return ""
+
+
 def extract_text_from_pdf(file_path):
-    """Extract text from PDF file"""
+    """Extract text from PDF file (with OCR fallback for scanned PDFs)"""
     text_parts = []
 
     with open(file_path, 'rb') as file:
         pdf_reader = PyPDF2.PdfReader(file)
-        for page in pdf_reader.pages:
+
+        for page_num, page in enumerate(pdf_reader.pages):
             text = page.extract_text()
+
             if text and text.strip():
                 text_parts.append(text)
+            elif OCR_AVAILABLE:
+                print(f"Using OCR for page {page_num + 1}...")
+                ocr_text = ocr_pdf_page(file_path, page_num)
+                if ocr_text:
+                    text_parts.append(ocr_text)
+
+    # If no text extracted and OCR is available, try full OCR
+    if not text_parts and OCR_AVAILABLE:
+        print("No text found. Running full OCR on entire PDF...")
+        text_parts.append(ocr_entire_pdf(file_path))
 
     return "\n\n".join(text_parts)
 
