@@ -1,10 +1,10 @@
 """
 Simple Document Processing Application
-Upload PDF/DOCX documents and process through 4 stages:
-1. Extract text and summarize
-2. Extract entities (persons & companies)
-3. Generate entity descriptions
-4. Flag entities for money laundering and sanctions evasion
+Upload PDF/DOCX documents and get:
+1. Summary
+2. List of persons and companies
+3. Description of each entity
+4. Risk flags for money laundering and sanctions evasion
 """
 
 import streamlit as st
@@ -16,67 +16,72 @@ from openai import OpenAI
 from docx import Document
 import PyPDF2
 
-# Initialize OpenAI client
-@st.cache_resource
-def get_openai_client():
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
-        st.error("Please set OPENAI_API_KEY environment variable")
-        st.stop()
-    return OpenAI(api_key=api_key)
 
-# Extract text from DOCX
-def extract_docx(file_path):
+# =============================================================================
+# DOCUMENT TEXT EXTRACTION
+# =============================================================================
+
+def extract_text_from_docx(file_path):
+    """Extract text from a DOCX file"""
     doc = Document(file_path)
-    text_content = []
+    text_parts = []
 
-    for para in doc.paragraphs:
-        if para.text.strip():
-            text_content.append(para.text)
+    # Get text from paragraphs
+    for paragraph in doc.paragraphs:
+        if paragraph.text.strip():
+            text_parts.append(paragraph.text)
 
+    # Get text from tables
     for table in doc.tables:
         for row in table.rows:
             row_text = [cell.text.strip() for cell in row.cells]
-            text_content.append(" | ".join(row_text))
+            text_parts.append(" | ".join(row_text))
 
-    return "\n".join(text_content)
+    return "\n".join(text_parts)
 
-# Extract text from PDF
-def extract_pdf(file_path):
-    text_content = []
 
-    with open(file_path, 'rb') as f:
-        reader = PyPDF2.PdfReader(f)
-        for page in reader.pages:
+def extract_text_from_pdf(file_path):
+    """Extract text from a PDF file"""
+    text_parts = []
+
+    with open(file_path, 'rb') as file:
+        pdf_reader = PyPDF2.PdfReader(file)
+
+        for page in pdf_reader.pages:
             text = page.extract_text()
             if text and text.strip():
-                text_content.append(text)
+                text_parts.append(text)
 
-    return "\n\n".join(text_content)
+    return "\n\n".join(text_parts)
 
-# Extract text from file
+
 def extract_text(file_path):
-    ext = Path(file_path).suffix.lower()
+    """Extract text from PDF or DOCX file"""
+    extension = Path(file_path).suffix.lower()
 
-    if ext == '.docx':
-        return extract_docx(file_path)
-    elif ext == '.pdf':
-        return extract_pdf(file_path)
+    if extension == '.docx':
+        return extract_text_from_docx(file_path)
+    elif extension == '.pdf':
+        return extract_text_from_pdf(file_path)
     else:
-        return f"Unsupported file format: {ext}"
+        return None
 
-# Stage 1: Summarize document
-def summarize_document(client, text):
+
+# =============================================================================
+# STAGE 1: SUMMARIZE DOCUMENT
+# =============================================================================
+
+def summarize_document(api_key, document_text):
+    """Generate a summary of the document using OpenAI"""
+
     st.write("🔄 Generating summary...")
 
-    messages = [
-        {
-            "role": "system",
-            "content": "You are an expert document analyst. Summarize documents clearly and accurately."
-        },
-        {
-            "role": "user",
-            "content": f"""Provide a comprehensive summary of this document.
+    client = OpenAI(api_key=api_key)
+
+    # Limit text length
+    text_to_summarize = document_text[:15000]
+
+    prompt = f"""Provide a comprehensive summary of this document.
 Include:
 - Main purpose and context
 - Key parties involved
@@ -85,59 +90,67 @@ Include:
 - Relevant details
 
 Document:
-{text[:15000]}"""  # Limit to ~15k chars
-        }
-    ]
+{text_to_summarize}"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=messages,
+        messages=[
+            {"role": "system", "content": "You are an expert document analyst. Summarize documents clearly and accurately."},
+            {"role": "user", "content": prompt}
+        ],
         temperature=0.3,
         max_tokens=1000
     )
 
-    return response.choices[0].message.content
+    summary = response.choices[0].message.content
+    return summary
 
-# Stage 2: Extract entities
-def extract_entities(client, text):
-    st.write("🔄 Extracting entities (persons & companies)...")
 
-    messages = [
-        {
-            "role": "system",
-            "content": """You are an expert entity extraction system. Extract all persons and companies/organizations mentioned in the document.
+# =============================================================================
+# STAGE 2: EXTRACT ENTITIES
+# =============================================================================
+
+def extract_entities(api_key, document_text):
+    """Extract persons and companies from the document"""
+
+    st.write("🔄 Extracting persons and companies...")
+
+    client = OpenAI(api_key=api_key)
+
+    # Limit text length
+    text_to_analyze = document_text[:15000]
+
+    prompt = f"""Extract all persons and companies from this document.
 
 Guidelines:
-- Persons: Extract full names of individuals (e.g., "John Smith", "Dr. Jane Doe")
-- Companies: Extract company names, organizations, institutions (e.g., "ABC Corporation", "Ministry of Finance")
-- Be thorough - extract all entities mentioned"""
-        },
-        {
-            "role": "user",
-            "content": f"Extract all persons and companies from this document:\n\n{text[:15000]}"
-        }
-    ]
+- Persons: Full names of individuals (e.g., "John Smith", "Dr. Jane Doe")
+- Companies: Company names, organizations, institutions (e.g., "ABC Corporation", "Ministry of Finance")
+- Be thorough - extract all entities mentioned
+
+Document:
+{text_to_analyze}"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=messages,
+        messages=[
+            {"role": "system", "content": "You are an expert at extracting entities from documents."},
+            {"role": "user", "content": prompt}
+        ],
         temperature=0.1,
         response_format={
             "type": "json_schema",
             "json_schema": {
-                "name": "entity_extraction",
+                "name": "entities",
                 "strict": True,
                 "schema": {
                     "type": "object",
                     "properties": {
                         "persons": {
                             "type": "array",
-                            "description": "List of person names",
                             "items": {"type": "string"}
                         },
                         "companies": {
                             "type": "array",
-                            "description": "List of company names",
                             "items": {"type": "string"}
                         }
                     },
@@ -148,46 +161,48 @@ Guidelines:
         }
     )
 
-    return json.loads(response.choices[0].message.content)
+    entities = json.loads(response.choices[0].message.content)
+    return entities
 
-# Stage 3: Describe entities
-def describe_entities(client, text, entities):
+
+# =============================================================================
+# STAGE 3: DESCRIBE ENTITIES
+# =============================================================================
+
+def describe_entities(api_key, document_text, persons, companies):
+    """Generate detailed descriptions for each entity"""
+
     st.write("🔄 Generating entity descriptions...")
 
-    all_entity_names = entities.get('persons', []) + entities.get('companies', [])
+    client = OpenAI(api_key=api_key)
 
-    if not all_entity_names:
+    # Combine all entities (limit to 10 for simplicity)
+    all_entities = persons[:5] + companies[:5]
+
+    if not all_entities:
         return {}
 
-    # Process in one batch (limit to first 10 for simplicity)
-    entity_names = all_entity_names[:10]
+    entity_names = ", ".join(all_entities)
+    text_to_analyze = document_text[:12000]
 
-    messages = [
-        {
-            "role": "system",
-            "content": """You are an expert analyst. For each entity, provide:
-1. A description based on the document
+    prompt = f"""Analyze these entities from the document: {entity_names}
+
+For each entity provide:
+1. Description based on the document
 2. Their role or position
 3. Key activities they're involved in
 4. Related entities
 5. Any financial details
 
-Be factual and precise."""
-        },
-        {
-            "role": "user",
-            "content": f"""Analyze these entities: {', '.join(entity_names)}
-
 Document:
-{text[:12000]}
-
-Provide detailed analysis for each entity."""
-        }
-    ]
+{text_to_analyze}"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=messages,
+        messages=[
+            {"role": "system", "content": "You are an expert analyst. Analyze entities based only on information in the document."},
+            {"role": "user", "content": prompt}
+        ],
         temperature=0.3,
         max_tokens=2000,
         response_format={
@@ -207,14 +222,8 @@ Provide detailed analysis for each entity."""
                                     "type": {"type": "string"},
                                     "description": {"type": "string"},
                                     "role": {"type": "string"},
-                                    "key_activities": {
-                                        "type": "array",
-                                        "items": {"type": "string"}
-                                    },
-                                    "related_entities": {
-                                        "type": "array",
-                                        "items": {"type": "string"}
-                                    },
+                                    "key_activities": {"type": "array", "items": {"type": "string"}},
+                                    "related_entities": {"type": "array", "items": {"type": "string"}},
                                     "financial_details": {"type": "string"}
                                 },
                                 "required": ["name", "type", "description", "role", "key_activities", "related_entities", "financial_details"],
@@ -231,87 +240,69 @@ Provide detailed analysis for each entity."""
 
     result = json.loads(response.choices[0].message.content)
 
-    # Convert to dict
+    # Convert list to dictionary for easier access
     descriptions = {}
     for entity in result.get('entities', []):
         descriptions[entity['name']] = entity
 
     return descriptions
 
-# Stage 4: Risk analysis
-def analyze_risks(client, text, entities, entity_descriptions):
-    st.write("🔄 Analyzing risks (money laundering & sanctions evasion)...")
 
-    # Document-level risk
-    messages = [
-        {
-            "role": "system",
-            "content": """You are an expert financial crime analyst specializing in anti-money laundering (AML) and sanctions compliance.
+# =============================================================================
+# STAGE 4: ANALYZE RISKS
+# =============================================================================
 
-Analyze documents for indicators of:
+def analyze_document_risk(api_key, document_text):
+    """Analyze the document for money laundering and sanctions evasion risks"""
 
-MONEY LAUNDERING:
-  • Unusual transaction patterns
-  • Shell companies or front companies
-  • Layering activities
-  • Structuring/Smurfing
-  • High-risk jurisdictions
-  • Rapid movement of funds
+    st.write("🔄 Analyzing document risks...")
 
-SANCTIONS EVASION:
-  • Transactions with sanctioned countries
-  • Use of front companies
-  • Re-routing through third countries
-  • False documentation
-  • Sanctioned individuals/entities
-  • Prohibited goods
+    client = OpenAI(api_key=api_key)
 
-Provide objective, evidence-based analysis."""
-        },
-        {
-            "role": "user",
-            "content": f"""Analyze this document for money laundering and sanctions evasion indicators.
+    text_to_analyze = document_text[:15000]
+
+    prompt = f"""Analyze this document for money laundering and sanctions evasion indicators.
+
+MONEY LAUNDERING INDICATORS:
+• Unusual transaction patterns
+• Shell companies or front companies
+• Layering activities
+• Structuring/Smurfing
+• High-risk jurisdictions
+• Rapid movement of funds
+
+SANCTIONS EVASION INDICATORS:
+• Transactions with sanctioned countries
+• Use of front companies
+• Re-routing through third countries
+• False documentation
+• Sanctioned individuals/entities
+• Prohibited goods
 
 Document:
-{text[:15000]}
-
-Provide a comprehensive risk assessment."""
-        }
-    ]
+{text_to_analyze}"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=messages,
+        messages=[
+            {"role": "system", "content": "You are a financial crime analyst. Analyze documents for money laundering and sanctions evasion."},
+            {"role": "user", "content": prompt}
+        ],
         temperature=0.1,
         max_tokens=1500,
         response_format={
             "type": "json_schema",
             "json_schema": {
-                "name": "document_risk_assessment",
+                "name": "document_risk",
                 "strict": True,
                 "schema": {
                     "type": "object",
                     "properties": {
-                        "overall_risk_level": {
-                            "type": "string",
-                            "enum": ["high", "medium", "low", "none"]
-                        },
-                        "money_laundering_risk": {
-                            "type": "string",
-                            "enum": ["high", "medium", "low", "none"]
-                        },
-                        "sanctions_evasion_risk": {
-                            "type": "string",
-                            "enum": ["high", "medium", "low", "none"]
-                        },
-                        "red_flags": {
-                            "type": "array",
-                            "items": {"type": "string"}
-                        },
-                        "suspicious_patterns": {
-                            "type": "array",
-                            "items": {"type": "string"}
-                        },
+                        "overall_risk_level": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+                        "money_laundering_risk": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+                        "sanctions_evasion_risk": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+                        "red_flags": {"type": "array", "items": {"type": "string"}},
+                        "suspicious_patterns": {"type": "array", "items": {"type": "string"}},
                         "analysis_summary": {"type": "string"}
                     },
                     "required": ["overall_risk_level", "money_laundering_risk", "sanctions_evasion_risk", "red_flags", "suspicious_patterns", "analysis_summary"],
@@ -322,207 +313,221 @@ Provide a comprehensive risk assessment."""
     )
 
     document_risk = json.loads(response.choices[0].message.content)
+    return document_risk
 
-    # Entity-level risk
-    all_entity_names = entities.get('persons', []) + entities.get('companies', [])
+
+def analyze_entity_risks(api_key, entity_descriptions):
+    """Analyze individual entities for criminal involvement"""
+
+    st.write("🔄 Analyzing entity risks...")
+
+    if not entity_descriptions:
+        return []
+
+    client = OpenAI(api_key=api_key)
+
+    # Build entity context
     entity_contexts = []
-
-    for name in all_entity_names[:10]:  # Limit to 10
-        desc = entity_descriptions.get(name, {})
-        context = f"""
-Entity: {name}
-Type: {desc.get('type', 'unknown')}
-Role: {desc.get('role', 'unknown')}
-Description: {desc.get('description', 'No description')}
-Activities: {', '.join(desc.get('key_activities', []))}
-"""
+    for name, info in list(entity_descriptions.items())[:10]:  # Limit to 10
+        context = f"""Entity: {name}
+Type: {info.get('type', 'unknown')}
+Role: {info.get('role', 'unknown')}
+Description: {info.get('description', 'No description')}
+Activities: {', '.join(info.get('key_activities', []))}"""
         entity_contexts.append(context)
 
-    if entity_contexts:
-        messages = [
-            {
-                "role": "system",
-                "content": """You are an expert in financial crime detection. Analyze entities for involvement in:
-1. Money Laundering
-2. Sanctions Evasion
+    all_contexts = "\n\n".join(entity_contexts)
 
-Only flag entities with credible evidence. Provide confidence scores."""
-            },
-            {
-                "role": "user",
-                "content": f"""Analyze these entities for money laundering and sanctions evasion:
+    prompt = f"""Analyze these entities for involvement in money laundering or sanctions evasion.
+Only flag entities with credible evidence.
 
-{chr(10).join(entity_contexts)}
+{all_contexts}"""
 
-Flag only entities with credible evidence."""
-            }
-        ]
-
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            temperature=0.1,
-            max_tokens=2000,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "entity_risk_assessment",
-                    "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "flagged_entities": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "entity_name": {"type": "string"},
-                                        "entity_type": {"type": "string"},
-                                        "crimes_flagged": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "string",
-                                                "enum": ["money_laundering", "sanctions_evasion"]
-                                            }
-                                        },
-                                        "risk_level": {
-                                            "type": "string",
-                                            "enum": ["high", "medium", "low"]
-                                        },
-                                        "confidence": {"type": "number"},
-                                        "evidence": {
-                                            "type": "array",
-                                            "items": {"type": "string"}
-                                        },
-                                        "reasoning": {"type": "string"}
-                                    },
-                                    "required": ["entity_name", "entity_type", "crimes_flagged", "risk_level", "confidence", "evidence", "reasoning"],
-                                    "additionalProperties": False
-                                }
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are an expert in financial crime detection. Only flag entities with credible evidence."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.1,
+        max_tokens=2000,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "entity_risks",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "flagged_entities": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_name": {"type": "string"},
+                                    "entity_type": {"type": "string"},
+                                    "crimes_flagged": {"type": "array", "items": {"type": "string", "enum": ["money_laundering", "sanctions_evasion"]}},
+                                    "risk_level": {"type": "string", "enum": ["high", "medium", "low"]},
+                                    "confidence": {"type": "number"},
+                                    "evidence": {"type": "array", "items": {"type": "string"}},
+                                    "reasoning": {"type": "string"}
+                                },
+                                "required": ["entity_name", "entity_type", "crimes_flagged", "risk_level", "confidence", "evidence", "reasoning"],
+                                "additionalProperties": False
                             }
-                        },
-                        "required": ["flagged_entities"],
-                        "additionalProperties": False
-                    }
+                        }
+                    },
+                    "required": ["flagged_entities"],
+                    "additionalProperties": False
                 }
             }
-        )
+        }
+    )
 
-        entity_risks = json.loads(response.choices[0].message.content)
-    else:
-        entity_risks = {"flagged_entities": []}
+    result = json.loads(response.choices[0].message.content)
+    return result.get('flagged_entities', [])
 
-    return {
-        "document_risk": document_risk,
-        "entity_risks": entity_risks
-    }
 
-# Process a single document
-def process_document(client, file_path, file_name):
+# =============================================================================
+# PROCESS ONE DOCUMENT
+# =============================================================================
+
+def process_document(api_key, file_path, file_name):
+    """Process a single document through all 4 stages"""
+
     st.subheader(f"📄 Processing: {file_name}")
 
     # Extract text
     with st.spinner("Extracting text..."):
-        text = extract_text(file_path)
-        if text.startswith("Error") or text.startswith("Unsupported"):
-            st.error(text)
+        document_text = extract_text(file_path)
+
+        if not document_text:
+            st.error("Failed to extract text from document")
             return None
-        st.success(f"✓ Extracted {len(text)} characters")
+
+        st.success(f"✓ Extracted {len(document_text)} characters")
 
     results = {
         "file_name": file_name,
-        "text": text
+        "text": document_text
     }
 
-    # Stage 1: Summarize
+    # STAGE 1: Summary
     with st.expander("📝 Stage 1: Document Summary", expanded=True):
-        summary = summarize_document(client, text)
+        summary = summarize_document(api_key, document_text)
         results["summary"] = summary
         st.write(summary)
 
-    # Stage 2: Extract entities
+    # STAGE 2: Extract entities
     with st.expander("👥 Stage 2: Extracted Entities", expanded=True):
-        entities = extract_entities(client, text)
+        entities = extract_entities(api_key, document_text)
         results["entities"] = entities
 
+        persons = entities.get('persons', [])
+        companies = entities.get('companies', [])
+
         col1, col2 = st.columns(2)
+
         with col1:
-            st.write("**Persons:**")
-            for person in entities.get('persons', []):
+            st.write(f"**Persons ({len(persons)}):**")
+            for person in persons:
                 st.write(f"- {person}")
+
         with col2:
-            st.write("**Companies:**")
-            for company in entities.get('companies', []):
+            st.write(f"**Companies ({len(companies)}):**")
+            for company in companies:
                 st.write(f"- {company}")
 
-    # Stage 3: Describe entities
+    # STAGE 3: Describe entities
     with st.expander("📋 Stage 3: Entity Descriptions", expanded=True):
-        descriptions = describe_entities(client, text, entities)
+        descriptions = describe_entities(api_key, document_text, persons, companies)
         results["descriptions"] = descriptions
 
-        for entity_name, desc in descriptions.items():
-            st.write(f"**{entity_name}** ({desc['type']})")
-            st.write(f"*Role:* {desc['role']}")
-            st.write(f"*Description:* {desc['description']}")
-            if desc['key_activities']:
-                st.write(f"*Activities:* {', '.join(desc['key_activities'])}")
-            if desc['financial_details']:
-                st.write(f"*Financial:* {desc['financial_details']}")
-            st.write("---")
+        if descriptions:
+            for entity_name, info in descriptions.items():
+                st.write(f"**{entity_name}** ({info['type']})")
+                st.write(f"*Role:* {info['role']}")
+                st.write(f"*Description:* {info['description']}")
 
-    # Stage 4: Risk analysis
+                if info['key_activities']:
+                    st.write(f"*Activities:* {', '.join(info['key_activities'])}")
+
+                if info['financial_details']:
+                    st.write(f"*Financial:* {info['financial_details']}")
+
+                st.write("---")
+        else:
+            st.write("No entity descriptions generated")
+
+    # STAGE 4: Risk analysis
     with st.expander("⚠️ Stage 4: Risk Assessment", expanded=True):
-        risks = analyze_risks(client, text, entities, descriptions)
-        results["risks"] = risks
-
-        doc_risk = risks["document_risk"]
 
         # Document risk
+        document_risk = analyze_document_risk(api_key, document_text)
+        results["document_risk"] = document_risk
+
         st.write("**Document-Level Risk:**")
 
+        # Risk indicators with colors
+        risk_colors = {
+            "high": "🔴",
+            "medium": "🟡",
+            "low": "🟢",
+            "none": "⚪"
+        }
+
         col1, col2, col3 = st.columns(3)
+
         with col1:
-            risk_color = {"high": "🔴", "medium": "🟡", "low": "🟢", "none": "⚪"}
-            st.metric("Overall Risk",
-                     f"{risk_color.get(doc_risk['overall_risk_level'], '⚪')} {doc_risk['overall_risk_level'].upper()}")
+            overall = document_risk['overall_risk_level']
+            st.metric("Overall Risk", f"{risk_colors.get(overall, '⚪')} {overall.upper()}")
+
         with col2:
-            st.metric("Money Laundering",
-                     f"{risk_color.get(doc_risk['money_laundering_risk'], '⚪')} {doc_risk['money_laundering_risk'].upper()}")
+            ml_risk = document_risk['money_laundering_risk']
+            st.metric("Money Laundering", f"{risk_colors.get(ml_risk, '⚪')} {ml_risk.upper()}")
+
         with col3:
-            st.metric("Sanctions Evasion",
-                     f"{risk_color.get(doc_risk['sanctions_evasion_risk'], '⚪')} {doc_risk['sanctions_evasion_risk'].upper()}")
+            se_risk = document_risk['sanctions_evasion_risk']
+            st.metric("Sanctions Evasion", f"{risk_colors.get(se_risk, '⚪')} {se_risk.upper()}")
 
-        st.write(f"**Analysis:** {doc_risk['analysis_summary']}")
+        st.write(f"**Analysis:** {document_risk['analysis_summary']}")
 
-        if doc_risk['red_flags']:
+        if document_risk['red_flags']:
             st.write("**Red Flags:**")
-            for flag in doc_risk['red_flags']:
+            for flag in document_risk['red_flags']:
                 st.write(f"- {flag}")
 
-        if doc_risk['suspicious_patterns']:
+        if document_risk['suspicious_patterns']:
             st.write("**Suspicious Patterns:**")
-            for pattern in doc_risk['suspicious_patterns']:
+            for pattern in document_risk['suspicious_patterns']:
                 st.write(f"- {pattern}")
 
         # Entity risks
-        flagged = risks["entity_risks"]["flagged_entities"]
-        if flagged:
-            st.write("---")
-            st.write(f"**Flagged Entities: {len(flagged)}**")
+        flagged_entities = analyze_entity_risks(api_key, descriptions)
+        results["flagged_entities"] = flagged_entities
 
-            for entity in flagged:
+        if flagged_entities:
+            st.write("---")
+            st.write(f"**Flagged Entities: {len(flagged_entities)}**")
+
+            for entity in flagged_entities:
                 st.write(f"### {entity['entity_name']} ({entity['entity_type']})")
                 st.write(f"**Risk Level:** {entity['risk_level'].upper()} (Confidence: {entity['confidence']:.2f})")
-                st.write(f"**Crimes:** {', '.join(entity['crimes_flagged']).replace('_', ' ').title()}")
+
+                crimes = ', '.join(entity['crimes_flagged']).replace('_', ' ').title()
+                st.write(f"**Crimes:** {crimes}")
+
                 st.write(f"**Reasoning:** {entity['reasoning']}")
+
                 st.write("**Evidence:**")
                 for evidence in entity['evidence']:
                     st.write(f"- {evidence}")
+
                 st.write("---")
         else:
             st.success("✓ No entities flagged for criminal activity")
 
-    # Download results
+    # Download button
     st.download_button(
         label="📥 Download Results (JSON)",
         data=json.dumps(results, indent=2),
@@ -532,8 +537,14 @@ def process_document(client, file_path, file_name):
 
     return results
 
-# Main app
+
+# =============================================================================
+# MAIN APPLICATION
+# =============================================================================
+
 def main():
+    """Main Streamlit application"""
+
     st.set_page_config(
         page_title="Document Risk Analyzer",
         page_icon="📄",
@@ -556,9 +567,16 @@ def main():
         """)
 
         st.write("---")
-        st.write("**Requirements:**")
-        st.write("- Set OPENAI_API_KEY environment variable")
-        st.write("- Upload PDF or DOCX files")
+        st.write("**Setup:**")
+        st.write("Set OPENAI_API_KEY environment variable before running")
+
+    # Get API key
+    api_key = os.getenv("OPENAI_API_KEY", "")
+
+    if not api_key:
+        st.error("⚠️ Please set OPENAI_API_KEY environment variable")
+        st.code("export OPENAI_API_KEY=sk-your-key-here")
+        st.stop()
 
     # File upload
     uploaded_files = st.file_uploader(
@@ -568,25 +586,23 @@ def main():
     )
 
     if uploaded_files:
-        client = get_openai_client()
-
         st.write(f"**{len(uploaded_files)} file(s) uploaded**")
 
         if st.button("🚀 Process Documents", type="primary"):
             all_results = []
 
             for uploaded_file in uploaded_files:
-                # Save to temp file
+                # Save to temporary file
                 with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
                     tmp_path = tmp_file.name
 
                 try:
-                    result = process_document(client, tmp_path, uploaded_file.name)
+                    result = process_document(api_key, tmp_path, uploaded_file.name)
                     if result:
                         all_results.append(result)
                 finally:
-                    # Clean up temp file
+                    # Clean up temporary file
                     os.unlink(tmp_path)
 
                 st.write("---")
@@ -601,6 +617,7 @@ def main():
                     file_name="all_results.json",
                     mime="application/json"
                 )
+
 
 if __name__ == "__main__":
     main()
