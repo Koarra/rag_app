@@ -1,6 +1,6 @@
 # Document Processing Pipeline
 
-Simple 4-step pipeline for analyzing documents for entities and financial crime risks.
+5-step pipeline for analyzing documents for entities and financial crime risks.
 
 ## Quick Start
 
@@ -12,8 +12,11 @@ pip install openai python-docx PyPDF2
 pip install pdf2image pytesseract
 # System dependencies: sudo apt-get install tesseract-ocr poppler-utils
 
-# Run the pipeline
+# Run the pipeline (all 5 steps)
 python run_pipeline.py document.pdf
+
+# Or skip entity grouping (4 steps)
+python run_pipeline.py document.pdf --skip-grouping
 ```
 
 ## Files
@@ -21,14 +24,19 @@ python run_pipeline.py document.pdf
 - **step1_summarize.py** - Extract text (with OCR) and summarize
 - **step2_extract_entities.py** - Extract persons and companies
 - **step3_describe_entities.py** - Describe each entity
-- **step4_analyze_risks.py** - Flag entities for money laundering & sanctions evasion
+- **step4_group_entities.py** - Group similar entities (deduplication)
+- **step5_analyze_risks.py** - Flag entities for money laundering & sanctions evasion
 - **run_pipeline.py** - Run all steps automatically
 
 ## Usage
 
 ### Option 1: Run all steps at once
 ```bash
+# All 5 steps (recommended)
 python run_pipeline.py contract.pdf
+
+# Skip entity grouping (4 steps)
+python run_pipeline.py contract.pdf --skip-grouping
 ```
 
 ### Option 2: Run steps individually
@@ -36,7 +44,8 @@ python run_pipeline.py contract.pdf
 python step1_summarize.py contract.pdf
 python step2_extract_entities.py
 python step3_describe_entities.py
-python step4_analyze_risks.py
+python step4_group_entities.py  # Deduplication
+python step5_analyze_risks.py
 ```
 
 ## What It Does
@@ -57,10 +66,18 @@ python step4_analyze_risks.py
 - Extracts: role, activities, related entities, financial details
 - **Output:** `entity_descriptions.json`
 
-### Step 4: Analyze Risks
+### Step 4: Group Entities
+- Identifies duplicate/similar entities
+- Groups variations of the same entity (e.g., "John Smith", "Mr. Smith", "J. Smith")
+- Merges entity descriptions
+- **Output:** `grouped_entities.json`
+- **Why here:** Clean, deduplicated entities before risk analysis
+
+### Step 5: Analyze Risks
 - Analyzes document for money laundering indicators
 - Analyzes document for sanctions evasion indicators
 - Flags specific entities with evidence
+- Uses grouped entities if available (cleaner analysis)
 - **Output:** `risk_assessment.json`
 
 ## OCR Support
@@ -95,6 +112,7 @@ summary.json              - Document summary
 entities.json             - {"persons": [...], "companies": [...]}
 entity_descriptions.json  - Detailed entity profiles
 risk_assessment.json      - Risk analysis with flagged entities
+grouped_entities.json     - Deduplicated entities (if step 5 run)
 ```
 
 ## Features

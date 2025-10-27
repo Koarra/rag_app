@@ -1,8 +1,8 @@
 """
-STEP 4: Analyze risks - flag entities for money laundering and sanctions evasion
+STEP 5: Analyze risks - flag entities for money laundering and sanctions evasion
 
-Usage: python step4_analyze_risks.py
-Reads: extracted_text.txt, entity_descriptions.json (from previous steps)
+Usage: python step5_analyze_risks.py
+Reads: extracted_text.txt, grouped_entities.json OR entity_descriptions.json (from previous steps)
 Output: Creates risk_assessment.json with flagged entities
 """
 
@@ -152,7 +152,7 @@ def main():
 
     api_key = input("Enter your OpenAI API key: ") if len(sys.argv) < 2 else sys.argv[1]
 
-    print(f"\n=== STEP 4: ANALYZE RISKS ===")
+    print(f"\n=== STEP 5: ANALYZE RISKS ===")
 
     # Read extracted text
     print("Reading extracted_text.txt...")
@@ -163,14 +163,26 @@ def main():
         print("Error: extracted_text.txt not found. Run step1_summarize.py first.")
         sys.exit(1)
 
-    # Read entity descriptions
-    print("Reading entity_descriptions.json...")
+    # Read entity descriptions (try grouped first, fallback to original)
+    entity_descriptions = None
+    
+    # Try grouped entities first (if step 4 was run)
     try:
-        with open("entity_descriptions.json", "r", encoding="utf-8") as f:
-            entity_descriptions = json.load(f)
+        print("Reading grouped_entities.json...")
+        with open("grouped_entities.json", "r", encoding="utf-8") as f:
+            grouped_data = json.load(f)
+            entity_descriptions = grouped_data.get("merged_descriptions", {})
+            print("Using grouped/deduplicated entities")
     except FileNotFoundError:
-        print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
-        sys.exit(1)
+        # Fallback to original entity descriptions
+        print("Reading entity_descriptions.json...")
+        try:
+            with open("entity_descriptions.json", "r", encoding="utf-8") as f:
+                entity_descriptions = json.load(f)
+                print("Using original entity descriptions")
+        except FileNotFoundError:
+            print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
+            sys.exit(1)
 
     # Analyze document risk
     print("Analyzing document risks...")
@@ -202,7 +214,7 @@ def main():
         print(f"  Risk: {entity['risk_level'].upper()}")
         print(f"  Crimes: {', '.join(entity['crimes_flagged'])}")
 
-    print("\n=== STEP 4 COMPLETE ===\n")
+    print("\n=== STEP 5 COMPLETE ===\n")
 
 
 if __name__ == "__main__":
