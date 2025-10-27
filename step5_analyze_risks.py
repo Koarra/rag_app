@@ -1,5 +1,5 @@
 """
-STEP 5: Analyze risks - flag entities for money laundering and sanctions evasion
+STEP 5: Analyze risks - flag entities for financial crimes
 
 Usage: python step5_analyze_risks.py
 Reads: extracted_text.txt, grouped_entities.json OR entity_descriptions.json (from previous steps)
@@ -8,6 +8,45 @@ Output: Creates risk_assessment.json with flagged entities
 
 import json
 from openai import OpenAI
+
+
+# Predefined list of financial crimes (FCP & AML)
+FINANCIAL_CRIMES = [
+    "money_laundering",
+    "sanctions_evasion",
+    "terrorist_financing",
+    "bribery",
+    "corruption",
+    "embezzlement",
+    "fraud",
+    "tax_evasion",
+    "insider_trading",
+    "market_manipulation",
+    "ponzi_scheme",
+    "pyramid_scheme",
+    "identity_theft",
+    "cybercrime",
+    "human_trafficking"
+]
+
+# Crime descriptions for the prompt
+CRIME_DESCRIPTIONS = """
+1. Money Laundering - Concealing the origins of illegally obtained money
+2. Sanctions Evasion - Circumventing international sanctions
+3. Terrorist Financing - Providing financial support to terrorist organizations
+4. Bribery - Offering or receiving something of value to influence actions
+5. Corruption - Abuse of power for private gain
+6. Embezzlement - Theft or misappropriation of funds by a person in a position of trust
+7. Fraud - Intentional deception for financial gain
+8. Tax Evasion - Illegal non-payment or underpayment of taxes
+9. Insider Trading - Trading based on non-public material information
+10. Market Manipulation - Artificially inflating or deflating security prices
+11. Ponzi Scheme - Fraudulent investment operation paying returns from new investors
+12. Pyramid Scheme - Unsustainable business model recruiting members via promised payments
+13. Identity Theft - Unauthorized use of another person's identity for fraud
+14. Cybercrime - Criminal activities carried out using computers or the internet
+15. Human Trafficking - Illegal trade of people for exploitation or commercial gain
+"""
 
 
 def load_entity_descriptions(filepath):
@@ -49,7 +88,7 @@ def load_entity_descriptions_from_data(data):
 
 
 def analyze_document_risk(text, api_key):
-    """Analyze document for money laundering and sanctions evasion"""
+    """Analyze document for financial crimes"""
     client = OpenAI(api_key=api_key)
 
     text_to_analyze = text[:15000]
@@ -59,27 +98,18 @@ def analyze_document_risk(text, api_key):
         messages=[
             {
                 "role": "system",
-                "content": "You are a financial crime analyst. Analyze documents for money laundering and sanctions evasion."
+                "content": f"""You are a financial crime analyst. Analyze documents for the following financial crimes:
+
+{CRIME_DESCRIPTIONS}
+
+Focus on evidence-based analysis. Only flag crimes with credible indicators."""
             },
             {
                 "role": "user",
-                "content": f"""Analyze this document for money laundering and sanctions evasion indicators.
+                "content": f"""Analyze this document for financial crime indicators.
 
-MONEY LAUNDERING INDICATORS:
-• Unusual transaction patterns
-• Shell companies or front companies
-• Layering activities
-• Structuring/Smurfing
-• High-risk jurisdictions
-• Rapid movement of funds
-
-SANCTIONS EVASION INDICATORS:
-• Transactions with sanctioned countries
-• Use of front companies
-• Re-routing through third countries
-• False documentation
-• Sanctioned individuals/entities
-• Prohibited goods
+Look for evidence of these crimes:
+{CRIME_DESCRIPTIONS}
 
 Document:
 {text_to_analyze}"""
@@ -96,13 +126,16 @@ Document:
                     "type": "object",
                     "properties": {
                         "overall_risk_level": {"type": "string", "enum": ["high", "medium", "low", "none"]},
-                        "money_laundering_risk": {"type": "string", "enum": ["high", "medium", "low", "none"]},
-                        "sanctions_evasion_risk": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+                        "crimes_detected": {
+                            "type": "array",
+                            "description": "List of crimes detected in the document",
+                            "items": {"type": "string", "enum": FINANCIAL_CRIMES}
+                        },
                         "red_flags": {"type": "array", "items": {"type": "string"}},
                         "suspicious_patterns": {"type": "array", "items": {"type": "string"}},
                         "analysis_summary": {"type": "string"}
                     },
-                    "required": ["overall_risk_level", "money_laundering_risk", "sanctions_evasion_risk", "red_flags", "suspicious_patterns", "analysis_summary"],
+                    "required": ["overall_risk_level", "crimes_detected", "red_flags", "suspicious_patterns", "analysis_summary"],
                     "additionalProperties": False
                 }
             }
@@ -132,11 +165,19 @@ def analyze_entity_risks(entity_descriptions, api_key):
         messages=[
             {
                 "role": "system",
-                "content": "You are an expert in financial crime detection. Only flag entities with credible evidence."
+                "content": f"""You are an expert in financial crime detection. Analyze entities for involvement in these crimes:
+
+{CRIME_DESCRIPTIONS}
+
+Only flag entities with credible evidence from their descriptions."""
             },
             {
                 "role": "user",
-                "content": f"""Analyze these entities for involvement in money laundering or sanctions evasion.
+                "content": f"""Analyze these entities for involvement in financial crimes.
+
+Crimes to check for:
+{CRIME_DESCRIPTIONS}
+
 Only flag entities with credible evidence.
 
 {all_contexts}"""
@@ -159,7 +200,11 @@ Only flag entities with credible evidence.
                                 "properties": {
                                     "entity_name": {"type": "string"},
                                     "entity_type": {"type": "string"},
-                                    "crimes_flagged": {"type": "array", "items": {"type": "string", "enum": ["money_laundering", "sanctions_evasion"]}},
+                                    "crimes_flagged": {
+                                        "type": "array",
+                                        "description": "List of crimes this entity is involved in",
+                                        "items": {"type": "string", "enum": FINANCIAL_CRIMES}
+                                    },
                                     "risk_level": {"type": "string", "enum": ["high", "medium", "low"]},
                                     "confidence": {"type": "number"},
                                     "evidence": {"type": "array", "items": {"type": "string"}},
@@ -187,6 +232,7 @@ def main():
     api_key = input("Enter your OpenAI API key: ") if len(sys.argv) < 2 else sys.argv[1]
 
     print(f"\n=== STEP 5: ANALYZE RISKS ===")
+    print(f"Checking for {len(FINANCIAL_CRIMES)} financial crime types")
 
     # Read extracted text
     print("Reading extracted_text.txt...")
@@ -220,7 +266,7 @@ def main():
             sys.exit(1)
 
     # Analyze document risk
-    print("Analyzing document risks...")
+    print("Analyzing document for financial crimes...")
     document_risk = analyze_document_risk(text, api_key)
 
     # Analyze entity risks
@@ -230,7 +276,12 @@ def main():
     # Combine results
     risk_assessment = {
         "document_risk": document_risk,
-        "flagged_entities": flagged_entities
+        "flagged_entities": flagged_entities,
+        "crime_definitions": {crime: desc for crime, desc in zip(
+            FINANCIAL_CRIMES,
+            [line.split(' - ', 1)[1] if ' - ' in line else line
+             for line in CRIME_DESCRIPTIONS.strip().split('\n') if line.strip() and not line.startswith('Look')]
+        )}
     }
 
     # Save risk assessment
@@ -240,8 +291,7 @@ def main():
     print("Saved: risk_assessment.json")
 
     print(f"\nDocument Risk: {document_risk['overall_risk_level'].upper()}")
-    print(f"Money Laundering Risk: {document_risk['money_laundering_risk'].upper()}")
-    print(f"Sanctions Evasion Risk: {document_risk['sanctions_evasion_risk'].upper()}")
+    print(f"Crimes Detected in Document: {', '.join(document_risk['crimes_detected']) if document_risk['crimes_detected'] else 'None'}")
     print(f"\nFlagged Entities: {len(flagged_entities)}")
 
     for entity in flagged_entities:
