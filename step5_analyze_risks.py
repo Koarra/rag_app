@@ -113,8 +113,13 @@ def main():
         try:
             with open("entity_descriptions.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
-            # Format: {"entities": [{"entity": "name", "description": "..."}]}
-            entities_dict = {e.get("entity", ""): e.get("description", "") for e in data.get("entities", [])}
+            # Handle both formats: dict {"entity": "desc"} or list {"entities": [...]}
+            if isinstance(data, dict) and "entities" in data:
+                # Old list format
+                entities_dict = {e.get("entity", ""): e.get("description", "") for e in data.get("entities", [])}
+            else:
+                # New dict format
+                entities_dict = data
             print("Using original entities")
         except FileNotFoundError:
             print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")

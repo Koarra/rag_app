@@ -8,21 +8,15 @@ Output: Creates entity_descriptions.json with detailed info for each entity
 
 import json
 from pydantic import BaseModel, Field
-from typing import List
+from typing import Dict
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from llama_index.core.program import LLMTextCompletionProgram
 from llama_index.llms.azure_openai import AzureOpenAI
 
 
-# Pydantic models
-class EntityDescription(BaseModel):
-    entity: str = Field(description="The entity name")
-    description: str = Field(description="A short description of the entity based on the document")
-    related_entities: List[str] = Field(description="List of related entities mentioned in the document")
-
-
+# Pydantic model
 class EntityDescriptions(BaseModel):
-    entities: List[EntityDescription] = Field(description="List of entity descriptions")
+    entities: Dict[str, str] = Field(description="Dictionary mapping entity names to their descriptions")
 
 
 def describe_entities(text, persons, companies, llm):
@@ -32,7 +26,7 @@ def describe_entities(text, persons, companies, llm):
     all_entities = persons + companies
 
     if not all_entities:
-        return {"entities": []}
+        return {}
 
     entity_names = ", ".join(all_entities)
     text_to_analyze = text[:12000]
@@ -44,9 +38,7 @@ def describe_entities(text, persons, companies, llm):
 
 Analyze these entities from the document: {entity_names}
 
-For each entity provide:
-1. A short description based on the document
-2. Related entities (other people or companies they interact with)
+For each entity provide a short description based on the document.
 
 Document:
 {document_text}
@@ -55,7 +47,7 @@ Document:
     )
 
     result = program(entity_names=entity_names, document_text=text_to_analyze)
-    return result
+    return result.entities
 
 
 def main():
@@ -95,20 +87,18 @@ def main():
 
     # Generate descriptions
     print("Generating entity descriptions...")
-    result = describe_entities(text, persons, companies, llm)
+    descriptions_dict = describe_entities(text, persons, companies, llm)
 
-    # Save descriptions in the format: {"entities": [...]}
-    output = result.model_dump()
-
+    # Save descriptions in simple dict format: {"entity": "description"}
     with open("entity_descriptions.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2)
+        json.dump(descriptions_dict, f, indent=2)
 
     print("Saved: entity_descriptions.json")
-    print(f"\nGenerated descriptions for {len(output['entities'])} entities")
+    print(f"\nGenerated descriptions for {len(descriptions_dict)} entities")
 
-    for entity_info in output['entities']:
-        print(f"\n{entity_info['entity']}:")
-        print(f"  Description: {entity_info['description'][:100]}...")
+    for entity_name, description in descriptions_dict.items():
+        print(f"\n{entity_name}:")
+        print(f"  Description: {description[:100]}...")
 
     print("\n=== STEP 3 COMPLETE ===\n")
 
