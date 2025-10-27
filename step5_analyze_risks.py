@@ -91,14 +91,18 @@ Determine if there is evidence of any financial crimes. Only use crimes from thi
 def main():
     import sys
 
+    output_folder = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    output_folder.mkdir(parents=True, exist_ok=True)
+
     print(f"\n=== STEP 5: ANALYZE RISKS ===")
+    print(f"Output folder: {output_folder}")
     print(f"Checking for {len(FINANCIAL_CRIMES)} financial crime types")
 
     # Read entity descriptions (try grouped first, fallback to original)
     entities_dict = None
     try:
         print("Reading dict_unique_grouped_entity_summary.json...")
-        with open("dict_unique_grouped_entity_summary.json", "r", encoding="utf-8") as f:
+        with open(output_folder / "dict_unique_grouped_entity_summary.json", "r", encoding="utf-8") as f:
             data = json.load(f)
         # Check if it's the new dict format {"entity1": "desc1", ...}
         if isinstance(data, dict) and "entities" not in data:
@@ -111,7 +115,7 @@ def main():
     except FileNotFoundError:
         print("Reading entity_descriptions.json...")
         try:
-            with open("entity_descriptions.json", "r", encoding="utf-8") as f:
+            with open(output_folder / "entity_descriptions.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
             # Handle both formats: dict {"entity": "desc"} or list {"entities": [...]}
             if isinstance(data, dict) and "entities" in data:
@@ -155,10 +159,10 @@ def main():
     # Save results
     risk_assessment = {"flagged_entities": flagged_entities}
 
-    with open("risk_assessment.json", "w", encoding="utf-8") as f:
+    with open(output_folder / "risk_assessment.json", "w", encoding="utf-8") as f:
         json.dump(risk_assessment, f, indent=2)
 
-    print(f"\nSaved: risk_assessment.json")
+    print(f"\nSaved: {output_folder}/risk_assessment.json")
     print(f"Flagged Entities: {len(flagged_entities)}/{len(entities)}")
 
     for entity in flagged_entities:

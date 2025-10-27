@@ -161,13 +161,16 @@ Document:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python step1_summarize.py <input_file.pdf>")
+        print("Usage: python step1_summarize.py <input_file.pdf> [output_folder]")
         sys.exit(1)
 
     input_file = sys.argv[1]
+    output_folder = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(".")
+    output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 1: SUMMARIZE DOCUMENT ===")
     print(f"Processing: {input_file}")
+    print(f"Output folder: {output_folder}")
 
     # Extract text
     print("Extracting text...")
@@ -180,9 +183,9 @@ def main():
     print(f"Extracted {len(text)} characters")
 
     # Save extracted text
-    with open("extracted_text.txt", "w", encoding="utf-8") as f:
+    with open(output_folder / "extracted_text.txt", "w", encoding="utf-8") as f:
         f.write(text)
-    print("Saved: extracted_text.txt")
+    print(f"Saved: {output_folder}/extracted_text.txt")
 
     # Initialize Azure OpenAI LLM
     llm = AzureOpenAI(
@@ -203,10 +206,10 @@ def main():
         "summary": summary
     }
 
-    with open("summary.json", "w", encoding="utf-8") as f:
+    with open(output_folder / "summary.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
 
-    print("Saved: summary.json")
+    print(f"Saved: {output_folder}/summary.json")
     print(f"\nSummary:\n{summary}")
     print("\n=== STEP 1 COMPLETE ===\n")
 

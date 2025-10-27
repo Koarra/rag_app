@@ -78,10 +78,10 @@ def main():
     # Save entities
     output = result.model_dump()
 
-    with open("entities.json", "w", encoding="utf-8") as f:
+    with open(output_folder / "entities.json", "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
 
-    print("Saved: entities.json")
+    print(f"Saved: {output_folder}/entities.json")
     print(f"\nFound {len(output['persons'])} person(s)")
     print(f"Found {len(output['companies'])} company/companies")
 
