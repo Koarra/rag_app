@@ -1,6 +1,6 @@
 # Document Processing Pipeline
 
-Simple 4-step pipeline for analyzing documents for entities and financial crime risks.
+Simple pipeline for analyzing documents for entities and financial crime risks.
 
 ## Quick Start
 
@@ -14,6 +14,9 @@ pip install pdf2image pytesseract
 
 # Run the pipeline
 python run_pipeline.py document.pdf
+
+# Or with entity grouping (deduplication)
+python run_pipeline.py document.pdf --group-entities
 ```
 
 ## Files
@@ -22,6 +25,7 @@ python run_pipeline.py document.pdf
 - **step2_extract_entities.py** - Extract persons and companies
 - **step3_describe_entities.py** - Describe each entity
 - **step4_analyze_risks.py** - Flag entities for money laundering & sanctions evasion
+- **step5_group_entities.py** - Group similar entities (optional deduplication)
 - **run_pipeline.py** - Run all steps automatically
 
 ## Usage
@@ -29,6 +33,9 @@ python run_pipeline.py document.pdf
 ### Option 1: Run all steps at once
 ```bash
 python run_pipeline.py contract.pdf
+
+# With entity grouping/deduplication
+python run_pipeline.py contract.pdf --group-entities
 ```
 
 ### Option 2: Run steps individually
@@ -37,6 +44,7 @@ python step1_summarize.py contract.pdf
 python step2_extract_entities.py
 python step3_describe_entities.py
 python step4_analyze_risks.py
+python step5_group_entities.py  # Optional
 ```
 
 ## What It Does
@@ -62,6 +70,13 @@ python step4_analyze_risks.py
 - Analyzes document for sanctions evasion indicators
 - Flags specific entities with evidence
 - **Output:** `risk_assessment.json`
+
+### Step 5: Group Entities (Optional)
+- Identifies duplicate/similar entities
+- Groups variations of the same entity (e.g., "John Smith", "Mr. Smith", "J. Smith")
+- Merges entity descriptions
+- **Output:** `grouped_entities.json`
+- **Use case:** When you have many entity variations referring to the same person/company
 
 ## OCR Support
 
@@ -95,6 +110,7 @@ summary.json              - Document summary
 entities.json             - {"persons": [...], "companies": [...]}
 entity_descriptions.json  - Detailed entity profiles
 risk_assessment.json      - Risk analysis with flagged entities
+grouped_entities.json     - Deduplicated entities (if step 5 run)
 ```
 
 ## Features

@@ -1,13 +1,14 @@
 """
-MAIN SCRIPT - Run all 4 steps in sequence
+MAIN SCRIPT - Run all steps in sequence
 
-Usage: python run_pipeline.py <input_document.pdf>
+Usage: python run_pipeline.py <input_document.pdf> [--group-entities]
 
-This script runs all 4 steps automatically:
+This script runs all steps automatically:
 1. Extract text and summarize
 2. Extract entities (persons & companies)
 3. Describe each entity
 4. Analyze risks (money laundering & sanctions evasion)
+5. Group similar entities (optional, use --group-entities flag)
 """
 
 import sys
@@ -33,11 +34,13 @@ def run_step(script_name, args):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python run_pipeline.py <input_document.pdf>")
+        print("Usage: python run_pipeline.py <input_document.pdf> [--group-entities]")
         print("\nExample: python run_pipeline.py contract.pdf")
+        print("Example: python run_pipeline.py contract.pdf --group-entities")
         sys.exit(1)
 
     input_file = sys.argv[1]
+    group_entities = "--group-entities" in sys.argv
 
     # Check file exists
     if not Path(input_file).exists():
@@ -51,11 +54,22 @@ def main():
     print("DOCUMENT PROCESSING PIPELINE")
     print("="*60)
     print(f"Input file: {input_file}")
-    print(f"\nThis will run 4 steps:")
-    print("1. Extract text and summarize")
-    print("2. Extract entities (persons & companies)")
-    print("3. Describe each entity")
-    print("4. Analyze risks (money laundering & sanctions evasion)")
+
+    if group_entities:
+        print(f"\nThis will run 5 steps:")
+        print("1. Extract text and summarize")
+        print("2. Extract entities (persons & companies)")
+        print("3. Describe each entity")
+        print("4. Analyze risks (money laundering & sanctions evasion)")
+        print("5. Group similar entities together")
+    else:
+        print(f"\nThis will run 4 steps:")
+        print("1. Extract text and summarize")
+        print("2. Extract entities (persons & companies)")
+        print("3. Describe each entity")
+        print("4. Analyze risks (money laundering & sanctions evasion)")
+        print("\nTip: Use --group-entities flag to merge duplicate entities")
+
     print("="*60)
 
     # Run all steps
@@ -63,6 +77,9 @@ def main():
     run_step("step2_extract_entities.py", [api_key])
     run_step("step3_describe_entities.py", [api_key])
     run_step("step4_analyze_risks.py", [api_key])
+
+    if group_entities:
+        run_step("step5_group_entities.py", [api_key])
 
     # Show final results
     print("\n" + "="*60)
@@ -74,6 +91,10 @@ def main():
     print("  - entities.json             (persons & companies)")
     print("  - entity_descriptions.json  (detailed entity info)")
     print("  - risk_assessment.json      (risk analysis)")
+
+    if group_entities:
+        print("  - grouped_entities.json     (deduplicated entities)")
+
     print("\n" + "="*60 + "\n")
 
 
