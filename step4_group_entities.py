@@ -7,11 +7,25 @@ Output: Creates dict_unique_grouped_entity_summary.json with grouped entities
 """
 
 import json
-from openai import OpenAI
+from pydantic import BaseModel, Field
+from typing import List
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from llama_index.core.program import LLMTextCompletionProgram
+from llama_index.llms.azure_openai import AzureOpenAI
 
 
-def group_entities(entities, client):
-    """Group similar entities together using OpenAI"""
+# Pydantic models
+class EntityGroup(BaseModel):
+    canonical_name: str = Field(description="The official/preferred name for this entity")
+    variations: List[str] = Field(description="All name variations that refer to this entity")
+
+
+class EntityGrouping(BaseModel):
+    groups: List[EntityGroup] = Field(description="Groups of entities that refer to the same person")
+
+
+def group_entities(entities, llm):
+    """Group similar entities together using LlamaIndex"""
 
     # Build entity list for the prompt
     entity_list = []
@@ -20,12 +34,17 @@ def group_entities(entities, client):
         description = entity_data.get("description", "")[:150]
         entity_list.append(f"{idx}. {entity_name} - {description}")
 
-    entity_text = "\n".join(entity_list)
+    entities_formatted = "\n".join(entity_list)
 
-    prompt = f"""Analyze these entities and identify which ones refer to the same person.
+    program = LLMTextCompletionProgram.from_defaults(
+        output_cls=EntityGrouping,
+        llm=llm,
+        prompt_template_str="""You are an expert at entity resolution and deduplication.
+
+Analyze these entities and identify which ones refer to the same person.
 
 ENTITIES:
-{entity_text}
+{entities_str}
 
 Group together entities that clearly refer to the same person. Consider:
 - Name variations (e.g., "John Smith", "Mr. Smith", "J. Smith")
@@ -33,60 +52,16 @@ Group together entities that clearly refer to the same person. Consider:
 
 For each group, choose the most complete/formal name as the canonical name.
 Only group entities if you're confident they're the same person. When in doubt, keep them separate.
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert at entity resolution and deduplication."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0.1,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "entity_grouping",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "groups": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "canonical_name": {"type": "string"},
-                                    "variations": {
-                                        "type": "array",
-                                        "items": {"type": "string"}
-                                    }
-                                },
-                                "required": ["canonical_name", "variations"],
-                                "additionalProperties": False
-                            }
-                        }
-                    },
-                    "required": ["groups"],
-                    "additionalProperties": False
-                }
-            }
-        }
+""",
+        verbose=False
     )
 
-    result = json.loads(response.choices[0].message.content)
-    return result.get("groups", [])
+    result = program(entities_str=entities_formatted)
+    return result.groups
 
 
 def main():
     import sys
-
-    api_key = input("Enter your OpenAI API key: ") if len(sys.argv) < 2 else sys.argv[1]
 
     print(f"\n=== STEP 4: GROUP ENTITIES ===")
 
@@ -112,18 +87,26 @@ def main():
         entity_name = entity_data.get("entity", "")
         entity_lookup[entity_name] = entity_data
 
+    # Initialize Azure OpenAI LLM
+    llm = AzureOpenAI(
+        engine="gpt-4o-mini",
+        use_azure_ad=True,
+        azure_ad_token_provider=get_bearer_token_provider(
+            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        )
+    )
+
     # Group entities
     print("Grouping entities...")
-    client = OpenAI(api_key=api_key)
-    groups = group_entities(entities, client)
+    groups = group_entities(entities, llm)
 
     # Build unique grouped entities
     grouped_entities = []
     processed_names = set()
 
     for group in groups:
-        canonical_name = group["canonical_name"]
-        variations = group["variations"]
+        canonical_name = group.canonical_name
+        variations = group.variations
 
         # Find the best description from all variations
         best_entity = None

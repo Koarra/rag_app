@@ -7,93 +7,59 @@ Output: Creates entity_descriptions.json with detailed info for each entity
 """
 
 import json
-from openai import OpenAI
+from pydantic import BaseModel, Field
+from typing import List
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from llama_index.core.program import LLMTextCompletionProgram
+from llama_index.llms.azure_openai import AzureOpenAI
 
 
-def describe_entities(text, persons, companies, api_key):
-    """Generate detailed descriptions for entities using OpenAI"""
-    client = OpenAI(api_key=api_key)
+# Pydantic models
+class EntityDescription(BaseModel):
+    entity: str = Field(description="The entity name")
+    description: str = Field(description="A short description of the entity based on the document")
+    related_entities: List[str] = Field(description="List of related entities mentioned in the document")
 
-    # Combine entities (limit to 10)
-    all_entities = persons[:5] + companies[:5]
+
+class EntityDescriptions(BaseModel):
+    entities: List[EntityDescription] = Field(description="List of entity descriptions")
+
+
+def describe_entities(text, persons, companies, llm):
+    """Generate detailed descriptions for entities using LlamaIndex"""
+
+    # Combine entities
+    all_entities = persons + companies
 
     if not all_entities:
-        return {}
+        return {"entities": []}
 
     entity_names = ", ".join(all_entities)
     text_to_analyze = text[:12000]
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert analyst. Analyze entities based only on information in the document."
-            },
-            {
-                "role": "user",
-                "content": f"""Analyze these entities from the document: {entity_names}
+    program = LLMTextCompletionProgram.from_defaults(
+        output_cls=EntityDescriptions,
+        llm=llm,
+        prompt_template_str="""You are an expert analyst. Analyze entities based only on information in the document.
+
+Analyze these entities from the document: {entity_names}
 
 For each entity provide:
-1. Description based on the document
-2. Their role or position
-3. Key activities they're involved in
-4. Related entities
-5. Any financial details
+1. A short description based on the document
+2. Related entities (other people or companies they interact with)
 
 Document:
-{text_to_analyze}"""
-            }
-        ],
-        temperature=0.3,
-        max_tokens=2000,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "entity_descriptions",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "entities": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {"type": "string"},
-                                    "type": {"type": "string"},
-                                    "description": {"type": "string"},
-                                    "role": {"type": "string"},
-                                    "key_activities": {"type": "array", "items": {"type": "string"}},
-                                    "related_entities": {"type": "array", "items": {"type": "string"}},
-                                    "financial_details": {"type": "string"}
-                                },
-                                "required": ["name", "type", "description", "role", "key_activities", "related_entities", "financial_details"],
-                                "additionalProperties": False
-                            }
-                        }
-                    },
-                    "required": ["entities"],
-                    "additionalProperties": False
-                }
-            }
-        }
+{document_text}
+""",
+        verbose=False
     )
 
-    result = json.loads(response.choices[0].message.content)
-
-    # Convert to dictionary
-    descriptions = {}
-    for entity in result.get('entities', []):
-        descriptions[entity['name']] = entity
-
-    return descriptions
+    result = program(entity_names=entity_names, document_text=text_to_analyze)
+    return result
 
 
 def main():
     import sys
-
-    api_key = input("Enter your OpenAI API key: ") if len(sys.argv) < 2 else sys.argv[1]
 
     print(f"\n=== STEP 3: DESCRIBE ENTITIES ===")
 
@@ -118,21 +84,31 @@ def main():
     persons = entities.get('persons', [])
     companies = entities.get('companies', [])
 
+    # Initialize Azure OpenAI LLM
+    llm = AzureOpenAI(
+        engine="gpt-4o-mini",
+        use_azure_ad=True,
+        azure_ad_token_provider=get_bearer_token_provider(
+            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        )
+    )
+
     # Generate descriptions
     print("Generating entity descriptions...")
-    descriptions = describe_entities(text, persons, companies, api_key)
+    result = describe_entities(text, persons, companies, llm)
 
-    # Save descriptions
+    # Save descriptions in the format: {"entities": [...]}
+    output = result.model_dump()
+
     with open("entity_descriptions.json", "w", encoding="utf-8") as f:
-        json.dump(descriptions, f, indent=2)
+        json.dump(output, f, indent=2)
 
     print("Saved: entity_descriptions.json")
-    print(f"\nGenerated descriptions for {len(descriptions)} entities")
+    print(f"\nGenerated descriptions for {len(output['entities'])} entities")
 
-    for name, info in descriptions.items():
-        print(f"\n{name} ({info['type']}):")
-        print(f"  Role: {info['role']}")
-        print(f"  Description: {info['description'][:100]}...")
+    for entity_info in output['entities']:
+        print(f"\n{entity_info['entity']}:")
+        print(f"  Description: {entity_info['description'][:100]}...")
 
     print("\n=== STEP 3 COMPLETE ===\n")
 

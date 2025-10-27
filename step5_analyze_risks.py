@@ -7,7 +7,11 @@ Output: Creates risk_assessment.json with flagged entities
 """
 
 import json
-from openai import OpenAI
+from pydantic import BaseModel, Field
+from typing import List
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from llama_index.core.program import LLMTextCompletionProgram
+from llama_index.llms.azure_openai import AzureOpenAI
 
 
 # Predefined list of financial crimes (FCP & AML)
@@ -49,64 +53,43 @@ CRIME_DESCRIPTIONS = """
 """
 
 
-def analyze_entity(entity_name, entity_description, client):
+# Pydantic models
+class EntityRisk(BaseModel):
+    entity_name: str = Field(description="The entity name")
+    entity_type: str = Field(description="Type of entity (person or company)")
+    crimes_flagged: List[str] = Field(description="List of crimes this entity is involved in")
+    risk_level: str = Field(description="Risk level: high, medium, low, or none")
+    confidence: float = Field(description="Confidence score between 0 and 1")
+    evidence: List[str] = Field(description="Evidence supporting the flagged crimes")
+    reasoning: str = Field(description="Reasoning for the assessment")
+
+
+def analyze_entity(entity_name, entity_description, llm):
     """Analyze a single entity for financial crimes"""
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": f"""You are an expert in financial crime detection. Analyze if this entity is involved in any of these crimes:
+    program = LLMTextCompletionProgram.from_defaults(
+        output_cls=EntityRisk,
+        llm=llm,
+        prompt_template_str=f"""You are an expert in financial crime detection. Analyze if this entity is involved in any of these crimes:
 
 {CRIME_DESCRIPTIONS}
 
-Only flag crimes with credible evidence from the description."""
-            },
-            {
-                "role": "user",
-                "content": f"""Analyze this entity for financial crime involvement:
+Only flag crimes with credible evidence from the description.
 
-Entity: {entity_name}
-Description: {entity_description}
+Entity: {{entity_name}}
+Description: {{entity_description}}
 
-Determine if there is evidence of any financial crimes."""
-            }
-        ],
-        temperature=0.1,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "entity_risk",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "entity_name": {"type": "string"},
-                        "entity_type": {"type": "string"},
-                        "crimes_flagged": {
-                            "type": "array",
-                            "items": {"type": "string", "enum": FINANCIAL_CRIMES}
-                        },
-                        "risk_level": {"type": "string", "enum": ["high", "medium", "low", "none"]},
-                        "confidence": {"type": "number"},
-                        "evidence": {"type": "array", "items": {"type": "string"}},
-                        "reasoning": {"type": "string"}
-                    },
-                    "required": ["entity_name", "entity_type", "crimes_flagged", "risk_level", "confidence", "evidence", "reasoning"],
-                    "additionalProperties": False
-                }
-            }
-        }
+Determine if there is evidence of any financial crimes. Only use crimes from this list: {', '.join(FINANCIAL_CRIMES)}
+""",
+        verbose=False
     )
 
-    return json.loads(response.choices[0].message.content)
+    result = program(entity_name=entity_name, entity_description=entity_description)
+    return result
 
 
 def main():
     import sys
-
-    api_key = input("Enter your OpenAI API key: ") if len(sys.argv) < 2 else sys.argv[1]
 
     print(f"\n=== STEP 5: ANALYZE RISKS ===")
     print(f"Checking for {len(FINANCIAL_CRIMES)} financial crime types")
@@ -136,8 +119,14 @@ def main():
 
     print(f"Analyzing {len(entities)} entities...")
 
-    # Initialize OpenAI client
-    client = OpenAI(api_key=api_key)
+    # Initialize Azure OpenAI LLM
+    llm = AzureOpenAI(
+        engine="gpt-4o-mini",
+        use_azure_ad=True,
+        azure_ad_token_provider=get_bearer_token_provider(
+            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        )
+    )
 
     # Analyze each entity and build results progressively
     flagged_entities = []
@@ -147,12 +136,12 @@ def main():
 
         print(f"  [{i}/{len(entities)}] Analyzing {entity_name}...")
 
-        result = analyze_entity(entity_name, entity_description, client)
+        result = analyze_entity(entity_name, entity_description, llm)
 
         # Only add to flagged list if crimes were detected
-        if result.get("crimes_flagged") and result["risk_level"] != "none":
-            flagged_entities.append(result)
-            print(f"    -> FLAGGED: {', '.join(result['crimes_flagged'])}")
+        if result.crimes_flagged and result.risk_level != "none":
+            flagged_entities.append(result.model_dump())
+            print(f"    -> FLAGGED: {', '.join(result.crimes_flagged)}")
 
     # Save results
     risk_assessment = {"flagged_entities": flagged_entities}

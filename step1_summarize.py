@@ -9,7 +9,10 @@ Output: Creates summary.json with the document summary
 import sys
 import json
 from pathlib import Path
-from openai import OpenAI
+from pydantic import BaseModel, Field
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from llama_index.core.program import LLMTextCompletionProgram
+from llama_index.llms.azure_openai import AzureOpenAI
 from docx import Document
 import PyPDF2
 
@@ -123,23 +126,23 @@ def extract_text(file_path):
         return None
 
 
-def summarize_document(text, api_key):
-    """Generate summary using OpenAI"""
-    client = OpenAI(api_key=api_key)
+# Pydantic model
+class DocumentSummary(BaseModel):
+    summary: str = Field(description="Comprehensive summary of the document")
+
+
+def summarize_document(text, llm):
+    """Generate summary using LlamaIndex"""
 
     # Limit text to 15000 characters
     text_to_summarize = text[:15000]
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert document analyst. Summarize documents clearly and accurately."
-            },
-            {
-                "role": "user",
-                "content": f"""Provide a comprehensive summary of this document.
+    program = LLMTextCompletionProgram.from_defaults(
+        output_cls=DocumentSummary,
+        llm=llm,
+        prompt_template_str="""You are an expert document analyst. Summarize documents clearly and accurately.
+
+Provide a comprehensive summary of this document.
 Include:
 - Main purpose and context
 - Key parties involved
@@ -147,14 +150,13 @@ Include:
 - Critical actions or decisions
 
 Document:
-{text_to_summarize}"""
-            }
-        ],
-        temperature=0.3,
-        max_tokens=1000
+{document_text}
+""",
+        verbose=False
     )
 
-    return response.choices[0].message.content
+    result = program(document_text=text_to_summarize)
+    return result.summary
 
 
 def main():
@@ -163,7 +165,6 @@ def main():
         sys.exit(1)
 
     input_file = sys.argv[1]
-    api_key = input("Enter your OpenAI API key: ") if len(sys.argv) < 3 else sys.argv[2]
 
     print(f"\n=== STEP 1: SUMMARIZE DOCUMENT ===")
     print(f"Processing: {input_file}")
@@ -183,9 +184,18 @@ def main():
         f.write(text)
     print("Saved: extracted_text.txt")
 
+    # Initialize Azure OpenAI LLM
+    llm = AzureOpenAI(
+        engine="gpt-4o-mini",
+        use_azure_ad=True,
+        azure_ad_token_provider=get_bearer_token_provider(
+            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        )
+    )
+
     # Generate summary
     print("Generating summary...")
-    summary = summarize_document(text, api_key)
+    summary = summarize_document(text, llm)
 
     # Save summary
     result = {
