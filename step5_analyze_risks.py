@@ -10,6 +10,44 @@ import json
 from openai import OpenAI
 
 
+def load_entity_descriptions(filepath):
+    """Load entity descriptions from either format"""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    descriptions = {}
+
+    # Handle array format: {"entities": [...]}
+    if isinstance(data, dict) and "entities" in data:
+        for entity_data in data["entities"]:
+            # Support both "entity" and "name" fields
+            entity_name = entity_data.get("entity") or entity_data.get("name")
+            if entity_name:
+                descriptions[entity_name] = entity_data
+    # Handle dict format: {"entity_name": {...}}
+    elif isinstance(data, dict):
+        descriptions = data
+
+    return descriptions
+
+
+def load_entity_descriptions_from_data(data):
+    """Load entity descriptions from data object (not file)"""
+    descriptions = {}
+
+    # Handle array format: {"entities": [...]}
+    if isinstance(data, dict) and "entities" in data:
+        for entity_data in data["entities"]:
+            entity_name = entity_data.get("entity") or entity_data.get("name")
+            if entity_name:
+                descriptions[entity_name] = entity_data
+    # Handle dict format: {"entity_name": {...}}
+    elif isinstance(data, dict):
+        descriptions = data
+
+    return descriptions
+
+
 def analyze_document_risk(text, api_key):
     """Analyze document for money laundering and sanctions evasion"""
     client = OpenAI(api_key=api_key)
@@ -83,13 +121,9 @@ def analyze_entity_risks(entity_descriptions, api_key):
 
     # Build entity context
     entity_contexts = []
-    for name, info in list(entity_descriptions.items())[:10]:
-        context = f"""Entity: {name}
-Type: {info.get('type', 'unknown')}
-Role: {info.get('role', 'unknown')}
-Description: {info.get('description', 'No description')}
-Activities: {', '.join(info.get('key_activities', []))}"""
-        entity_contexts.append(context)
+    for name, info in list(entity_descriptions.items())[:10]:  # Limit to 10
+        desc = info.get('description', 'No description')
+        entity_contexts.append(f"Entity: {name}\nDescription: {desc}")
 
     all_contexts = "\n\n".join(entity_contexts)
 
@@ -165,21 +199,22 @@ def main():
 
     # Read entity descriptions (try grouped first, fallback to original)
     entity_descriptions = None
-    
+
     # Try grouped entities first (if step 4 was run)
     try:
         print("Reading grouped_entities.json...")
         with open("grouped_entities.json", "r", encoding="utf-8") as f:
             grouped_data = json.load(f)
-            entity_descriptions = grouped_data.get("merged_descriptions", {})
+            # Extract merged_descriptions
+            merged = grouped_data.get("merged_descriptions", {})
+            entity_descriptions = load_entity_descriptions_from_data(merged)
             print("Using grouped/deduplicated entities")
     except FileNotFoundError:
         # Fallback to original entity descriptions
         print("Reading entity_descriptions.json...")
         try:
-            with open("entity_descriptions.json", "r", encoding="utf-8") as f:
-                entity_descriptions = json.load(f)
-                print("Using original entity descriptions")
+            entity_descriptions = load_entity_descriptions("entity_descriptions.json")
+            print("Using original entity descriptions")
         except FileNotFoundError:
             print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
             sys.exit(1)
