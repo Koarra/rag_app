@@ -1,5 +1,5 @@
 """
-STEP 5: Group similar entities together
+STEP 4: Group similar entities together
 
 This script identifies entities that refer to the same person or company
 and groups them under a canonical name.
@@ -9,7 +9,7 @@ Examples:
 - "ABC Corporation", "ABC Corp", "ABC" → "ABC Corporation"
 - "Microsoft Corporation", "Microsoft", "MSFT" → "Microsoft Corporation"
 
-Usage: python step5_group_entities.py
+Usage: python step4_group_entities.py
 Reads: entities.json, entity_descriptions.json (from previous steps)
 Output: Creates grouped_entities.json with consolidated entity list
 """
@@ -210,7 +210,7 @@ def main():
 
     api_key = input("Enter your OpenAI API key: ") if len(sys.argv) < 2 else sys.argv[1]
 
-    print(f"\n=== STEP 5: GROUP ENTITIES ===")
+    print(f"\n=== STEP 4: GROUP ENTITIES ===")
 
     # Read entities
     print("Reading entities.json...")
@@ -298,7 +298,7 @@ def main():
     print(f"  Companies merged: {companies_merged}")
     print(f"  Total duplicates removed: {persons_merged + companies_merged}")
 
-    print("\n=== STEP 5 COMPLETE ===\n")
+    print("\n=== STEP 4 COMPLETE ===\n")
 
 
 if __name__ == "__main__":
