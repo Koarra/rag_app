@@ -7,26 +7,31 @@ Output: Creates entities.json with list of persons and companies
 """
 
 import json
-from openai import OpenAI
+from pydantic import BaseModel, Field
+from typing import List
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from llama_index.core.program import LLMTextCompletionProgram
+from llama_index.llms.azure_openai import AzureOpenAI
 
 
-def extract_entities(text, api_key):
-    """Extract persons and companies using OpenAI"""
-    client = OpenAI(api_key=api_key)
+# Pydantic model
+class Entities(BaseModel):
+    persons: List[str] = Field(description="List of person names found in the document")
+    companies: List[str] = Field(description="List of company/organization names found in the document")
+
+
+def extract_entities(text, llm):
+    """Extract persons and companies using LlamaIndex"""
 
     # Limit text to 15000 characters
     text_to_analyze = text[:15000]
 
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an expert at extracting entities from documents."
-            },
-            {
-                "role": "user",
-                "content": f"""Extract all persons and companies from this document.
+    program = LLMTextCompletionProgram.from_defaults(
+        output_cls=Entities,
+        llm=llm,
+        prompt_template_str="""You are an expert at extracting entities from documents.
+
+Extract all persons and companies from this document.
 
 Guidelines:
 - Persons: Full names of individuals (e.g., "John Smith", "Dr. Jane Doe")
@@ -34,41 +39,17 @@ Guidelines:
 - Be thorough - extract all entities mentioned
 
 Document:
-{text_to_analyze}"""
-            }
-        ],
-        temperature=0.1,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "entities",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "persons": {
-                            "type": "array",
-                            "items": {"type": "string"}
-                        },
-                        "companies": {
-                            "type": "array",
-                            "items": {"type": "string"}
-                        }
-                    },
-                    "required": ["persons", "companies"],
-                    "additionalProperties": False
-                }
-            }
-        }
+{document_text}
+""",
+        verbose=False
     )
 
-    return json.loads(response.choices[0].message.content)
+    result = program(document_text=text_to_analyze)
+    return result
 
 
 def main():
     import sys
-
-    api_key = input("Enter your OpenAI API key: ") if len(sys.argv) < 2 else sys.argv[1]
 
     print(f"\n=== STEP 2: EXTRACT ENTITIES ===")
 
@@ -81,20 +62,31 @@ def main():
         print("Error: extracted_text.txt not found. Run step1_summarize.py first.")
         sys.exit(1)
 
+    # Initialize Azure OpenAI LLM
+    llm = AzureOpenAI(
+        engine="gpt-4o",
+        use_azure_ad=True,
+        azure_ad_token_provider=get_bearer_token_provider(
+            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        )
+    )
+
     # Extract entities
     print("Extracting entities...")
-    entities = extract_entities(text, api_key)
+    result = extract_entities(text, llm)
 
     # Save entities
+    output = result.model_dump()
+
     with open("entities.json", "w", encoding="utf-8") as f:
-        json.dump(entities, f, indent=2)
+        json.dump(output, f, indent=2)
 
     print("Saved: entities.json")
-    print(f"\nFound {len(entities['persons'])} person(s)")
-    print(f"Found {len(entities['companies'])} company/companies")
+    print(f"\nFound {len(output['persons'])} person(s)")
+    print(f"Found {len(output['companies'])} company/companies")
 
-    print(f"\nPersons: {entities['persons']}")
-    print(f"\nCompanies: {entities['companies']}")
+    print(f"\nPersons: {output['persons']}")
+    print(f"\nCompanies: {output['companies']}")
 
     print("\n=== STEP 2 COMPLETE ===\n")
 
