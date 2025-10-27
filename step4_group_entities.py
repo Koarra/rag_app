@@ -93,12 +93,6 @@ def main():
     for entity_name, description in entities_dict.items():
         entities.append({"entity": entity_name, "description": description})
 
-    # Create entity lookup by name
-    entity_lookup = {}
-    for entity_data in entities:
-        entity_name = entity_data.get("entity", "")
-        entity_lookup[entity_name] = entity_data
-
     # Initialize Azure OpenAI LLM
     llm = AzureOpenAI(
         engine="gpt-4o-mini",
@@ -112,41 +106,36 @@ def main():
     print("Grouping entities...")
     groups = group_entities(entities, llm)
 
-    # Build unique grouped entities as dict
-    grouped_entities = {}
-    processed_names = set()
+    # Build output: start with all original entities
+    grouped_entities = entities_dict.copy()
 
+    # Process groups and merge duplicates
     for group in groups:
         canonical_name = group.canonical_name
         variations = group.variations
 
-        # Find the best description from all variations
-        best_entity = None
+        # Find the best (longest) description from all variations
+        best_description = ""
         for variation in variations:
-            if variation in entity_lookup:
-                entity_data = entity_lookup[variation]
-                if best_entity is None or len(entity_data.get("description", "")) > len(best_entity.get("description", "")):
-                    best_entity = entity_data
-                processed_names.add(variation)
+            if variation in entities_dict:
+                desc = entities_dict[variation]
+                if len(desc) > len(best_description):
+                    best_description = desc
 
-        if best_entity:
-            # Add to dict: entity_name -> description
-            grouped_entities[canonical_name] = best_entity.get("description", "")
-
-    # Add entities that weren't grouped
-    for entity_data in entities:
-        entity_name = entity_data.get("entity", "")
-        if entity_name not in processed_names:
-            grouped_entities[entity_name] = entity_data.get("description", "")
+        # Keep only the canonical name, remove variations
+        grouped_entities[canonical_name] = best_description
+        for variation in variations:
+            if variation != canonical_name and variation in grouped_entities:
+                del grouped_entities[variation]
 
     # Save output as simple dict: {"entity1": "description1", ...}
     with open("dict_unique_grouped_entity_summary.json", "w", encoding="utf-8") as f:
         json.dump(grouped_entities, f, indent=2)
 
     print(f"Saved: dict_unique_grouped_entity_summary.json")
-    print(f"Original count: {len(entities)}")
+    print(f"Original count: {len(entities_dict)}")
     print(f"Grouped count: {len(grouped_entities)}")
-    print(f"Duplicates removed: {len(entities) - len(grouped_entities)}")
+    print(f"Duplicates removed: {len(entities_dict) - len(grouped_entities)}")
 
     print("\n=== STEP 4 COMPLETE ===\n")
 
