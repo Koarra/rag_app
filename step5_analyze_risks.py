@@ -2,7 +2,7 @@
 STEP 5: Analyze risks - flag entities for financial crimes
 
 Usage: python step5_analyze_risks.py
-Reads: entity_descriptions.json (from step 3)
+Reads: dict_unique_grouped_entity_summary.json (from step 4) OR entity_descriptions.json (from step 3)
 Output: Creates risk_assessment.json with flagged entities
 """
 
@@ -111,19 +111,27 @@ def main():
     print(f"\n=== STEP 5: ANALYZE RISKS ===")
     print(f"Checking for {len(FINANCIAL_CRIMES)} financial crime types")
 
-    # Read entity descriptions
-    print("Reading entity_descriptions.json...")
+    # Read entity descriptions (try grouped first, fallback to original)
+    data = None
     try:
-        with open("entity_descriptions.json", "r", encoding="utf-8") as f:
+        print("Reading dict_unique_grouped_entity_summary.json...")
+        with open("dict_unique_grouped_entity_summary.json", "r", encoding="utf-8") as f:
             data = json.load(f)
+        print("Using grouped entities")
     except FileNotFoundError:
-        print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
-        sys.exit(1)
+        print("Reading entity_descriptions.json...")
+        try:
+            with open("entity_descriptions.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+            print("Using original entities")
+        except FileNotFoundError:
+            print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
+            sys.exit(1)
 
     # Extract entities list
     entities = data.get("entities", [])
     if not entities:
-        print("No entities found in entity_descriptions.json")
+        print("No entities found in input file")
         sys.exit(1)
 
     print(f"Analyzing {len(entities)} entities...")
