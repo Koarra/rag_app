@@ -74,12 +74,24 @@ def main():
         print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
         sys.exit(1)
 
-    entities = data.get("entities", [])
-    if not entities:
+    # Handle both formats: dict {"entity": "desc"} or list {"entities": [...]}
+    if isinstance(data, dict) and "entities" in data:
+        # Old list format
+        entities_dict = {e.get("entity", ""): e.get("description", "") for e in data.get("entities", [])}
+    else:
+        # New dict format
+        entities_dict = data
+
+    if not entities_dict:
         print("No entities found in entity_descriptions.json")
         sys.exit(1)
 
-    print(f"Original entity count: {len(entities)}")
+    print(f"Original entity count: {len(entities_dict)}")
+
+    # Convert dict to list format for grouping algorithm
+    entities = []
+    for entity_name, description in entities_dict.items():
+        entities.append({"entity": entity_name, "description": description})
 
     # Create entity lookup by name
     entity_lookup = {}
