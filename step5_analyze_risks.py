@@ -2,7 +2,7 @@
 STEP 5: Analyze risks - flag entities for financial crimes
 
 Usage: python step5_analyze_risks.py
-Reads: grouped_entities.json OR entity_descriptions.json (from previous steps)
+Reads: entity_descriptions.json (from step 3)
 Output: Creates risk_assessment.json with flagged entities
 """
 
@@ -49,123 +49,58 @@ CRIME_DESCRIPTIONS = """
 """
 
 
-def load_entity_descriptions(filepath):
-    """Load entity descriptions from either format"""
-    with open(filepath, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-
-    descriptions = {}
-
-    # Handle array format: {"entities": [...]}
-    if isinstance(data, dict) and "entities" in data:
-        for entity_data in data["entities"]:
-            # Support both "entity" and "name" fields
-            entity_name = entity_data.get("entity") or entity_data.get("name")
-            if entity_name:
-                descriptions[entity_name] = entity_data
-    # Handle dict format: {"entity_name": {...}}
-    elif isinstance(data, dict):
-        descriptions = data
-
-    return descriptions
-
-
-def load_entity_descriptions_from_data(data):
-    """Load entity descriptions from data object (not file)"""
-    descriptions = {}
-
-    # Handle array format: {"entities": [...]}
-    if isinstance(data, dict) and "entities" in data:
-        for entity_data in data["entities"]:
-            entity_name = entity_data.get("entity") or entity_data.get("name")
-            if entity_name:
-                descriptions[entity_name] = entity_data
-    # Handle dict format: {"entity_name": {...}}
-    elif isinstance(data, dict):
-        descriptions = data
-
-    return descriptions
-
-
-def analyze_entity_risks(entity_descriptions, api_key):
-    """Analyze individual entities for criminal involvement"""
-    if not entity_descriptions:
-        return []
-
-    client = OpenAI(api_key=api_key)
-
-    # Build entity context
-    entity_contexts = []
-    for name, info in list(entity_descriptions.items())[:10]:  # Limit to 10
-        desc = info.get('description', 'No description')
-        entity_contexts.append(f"Entity: {name}\nDescription: {desc}")
-
-    all_contexts = "\n\n".join(entity_contexts)
+def analyze_entity(entity_name, entity_description, client):
+    """Analyze a single entity for financial crimes"""
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
             {
                 "role": "system",
-                "content": f"""You are an expert in financial crime detection. Analyze entities for involvement in these crimes:
+                "content": f"""You are an expert in financial crime detection. Analyze if this entity is involved in any of these crimes:
 
 {CRIME_DESCRIPTIONS}
 
-Only flag entities with credible evidence from their descriptions."""
+Only flag crimes with credible evidence from the description."""
             },
             {
                 "role": "user",
-                "content": f"""Analyze these entities for involvement in financial crimes.
+                "content": f"""Analyze this entity for financial crime involvement:
 
-Crimes to check for:
-{CRIME_DESCRIPTIONS}
+Entity: {entity_name}
+Description: {entity_description}
 
-Only flag entities with credible evidence.
-
-{all_contexts}"""
+Determine if there is evidence of any financial crimes."""
             }
         ],
         temperature=0.1,
-        max_tokens=2000,
         response_format={
             "type": "json_schema",
             "json_schema": {
-                "name": "entity_risks",
+                "name": "entity_risk",
                 "strict": True,
                 "schema": {
                     "type": "object",
                     "properties": {
-                        "flagged_entities": {
+                        "entity_name": {"type": "string"},
+                        "entity_type": {"type": "string"},
+                        "crimes_flagged": {
                             "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "entity_name": {"type": "string"},
-                                    "entity_type": {"type": "string"},
-                                    "crimes_flagged": {
-                                        "type": "array",
-                                        "description": "List of crimes this entity is involved in",
-                                        "items": {"type": "string", "enum": FINANCIAL_CRIMES}
-                                    },
-                                    "risk_level": {"type": "string", "enum": ["high", "medium", "low"]},
-                                    "confidence": {"type": "number"},
-                                    "evidence": {"type": "array", "items": {"type": "string"}},
-                                    "reasoning": {"type": "string"}
-                                },
-                                "required": ["entity_name", "entity_type", "crimes_flagged", "risk_level", "confidence", "evidence", "reasoning"],
-                                "additionalProperties": False
-                            }
-                        }
+                            "items": {"type": "string", "enum": FINANCIAL_CRIMES}
+                        },
+                        "risk_level": {"type": "string", "enum": ["high", "medium", "low", "none"]},
+                        "confidence": {"type": "number"},
+                        "evidence": {"type": "array", "items": {"type": "string"}},
+                        "reasoning": {"type": "string"}
                     },
-                    "required": ["flagged_entities"],
+                    "required": ["entity_name", "entity_type", "crimes_flagged", "risk_level", "confidence", "evidence", "reasoning"],
                     "additionalProperties": False
                 }
             }
         }
     )
 
-    result = json.loads(response.choices[0].message.content)
-    return result.get('flagged_entities', [])
+    return json.loads(response.choices[0].message.content)
 
 
 def main():
@@ -176,43 +111,49 @@ def main():
     print(f"\n=== STEP 5: ANALYZE RISKS ===")
     print(f"Checking for {len(FINANCIAL_CRIMES)} financial crime types")
 
-    # Read entity descriptions (try grouped first, fallback to original)
-    entity_descriptions = None
-
-    # Try grouped entities first (if step 4 was run)
+    # Read entity descriptions
+    print("Reading entity_descriptions.json...")
     try:
-        print("Reading grouped_entities.json...")
-        with open("grouped_entities.json", "r", encoding="utf-8") as f:
-            grouped_data = json.load(f)
-            # Extract merged_descriptions
-            merged = grouped_data.get("merged_descriptions", {})
-            entity_descriptions = load_entity_descriptions_from_data(merged)
-            print("Using grouped/deduplicated entities")
+        with open("entity_descriptions.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
     except FileNotFoundError:
-        # Fallback to original entity descriptions
-        print("Reading entity_descriptions.json...")
-        try:
-            entity_descriptions = load_entity_descriptions("entity_descriptions.json")
-            print("Using original entity descriptions")
-        except FileNotFoundError:
-            print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
-            sys.exit(1)
+        print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
+        sys.exit(1)
 
-    # Analyze entity risks
-    print("Analyzing entity risks...")
-    flagged_entities = analyze_entity_risks(entity_descriptions, api_key)
+    # Extract entities list
+    entities = data.get("entities", [])
+    if not entities:
+        print("No entities found in entity_descriptions.json")
+        sys.exit(1)
 
-    # Build results
-    risk_assessment = {
-        "flagged_entities": flagged_entities
-    }
+    print(f"Analyzing {len(entities)} entities...")
 
-    # Save risk assessment
+    # Initialize OpenAI client
+    client = OpenAI(api_key=api_key)
+
+    # Analyze each entity and build results progressively
+    flagged_entities = []
+    for i, entity_data in enumerate(entities, 1):
+        entity_name = entity_data.get("entity", "")
+        entity_description = entity_data.get("description", "")
+
+        print(f"  [{i}/{len(entities)}] Analyzing {entity_name}...")
+
+        result = analyze_entity(entity_name, entity_description, client)
+
+        # Only add to flagged list if crimes were detected
+        if result.get("crimes_flagged") and result["risk_level"] != "none":
+            flagged_entities.append(result)
+            print(f"    -> FLAGGED: {', '.join(result['crimes_flagged'])}")
+
+    # Save results
+    risk_assessment = {"flagged_entities": flagged_entities}
+
     with open("risk_assessment.json", "w", encoding="utf-8") as f:
         json.dump(risk_assessment, f, indent=2)
 
-    print("Saved: risk_assessment.json")
-    print(f"\nFlagged Entities: {len(flagged_entities)}")
+    print(f"\nSaved: risk_assessment.json")
+    print(f"Flagged Entities: {len(flagged_entities)}/{len(entities)}")
 
     for entity in flagged_entities:
         print(f"\n  {entity['entity_name']} ({entity['entity_type']})")
