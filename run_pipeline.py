@@ -3,12 +3,13 @@ MAIN SCRIPT - Run all steps in sequence
 
 Usage: python run_pipeline.py <input_document.pdf> [--skip-grouping]
 
-This script runs all 5 steps automatically:
+This script runs all 6 steps automatically:
 1. Extract text and summarize
 2. Extract entities (persons & companies)
 3. Describe each entity
 4. Group similar entities (deduplication)
-5. Analyze risks (money laundering & sanctions evasion)
+5. Analyze risks (financial crimes)
+6. Extract relationships and create knowledge graph
 
 Use --skip-grouping to skip step 4 (entity grouping)
 """
@@ -56,19 +57,21 @@ def main():
     print("Using Azure OpenAI with DefaultAzureCredential")
 
     if skip_grouping:
-        print(f"\nThis will run 4 steps (skipping entity grouping):")
+        print(f"\nThis will run 5 steps (skipping entity grouping):")
         print("1. Extract text and summarize")
         print("2. Extract entities (persons & companies)")
         print("3. Describe each entity")
         print("4. [SKIPPED] Group similar entities")
         print("5. Analyze risks (financial crimes)")
+        print("6. Extract relationships and create knowledge graph")
     else:
-        print(f"\nThis will run 5 steps:")
+        print(f"\nThis will run 6 steps:")
         print("1. Extract text and summarize")
         print("2. Extract entities (persons & companies)")
         print("3. Describe each entity")
         print("4. Group similar entities (deduplication)")
         print("5. Analyze risks (financial crimes)")
+        print("6. Extract relationships and create knowledge graph")
 
     print("="*60)
 
@@ -81,6 +84,7 @@ def main():
         run_step("step4_group_entities.py", [])
 
     run_step("step5_analyze_risks.py", [])
+    run_step("step6_extract_relationships.py", [])
 
     # Show final results
     print("\n" + "="*60)
@@ -96,6 +100,9 @@ def main():
         print("  - dict_unique_grouped_entity_summary.json (deduplicated entities)")
 
     print("  - risk_assessment.json                     (risk analysis)")
+    print("  - entity_relationships.json                (all entity relationships)")
+    print("  - entity_relationships_filtered.json       (meaningful relationships only)")
+    print("  - graph_elements.json                      (knowledge graph for visualization)")
 
     print("\n" + "="*60 + "\n")
 
