@@ -18,9 +18,22 @@ import hashlib
 import re
 from datetime import datetime
 import pandas as pd
+import os
 
-# Configuration
-ASSET_FOLDER = Path("./uploaded_documents")
+# Configuration - Support both Domino and local environments
+if "DOMINO_DATASETS_DIR" in os.environ and "DOMINO_PROJECT_NAME" in os.environ:
+    # Running on Domino Data Lab
+    ASSET_FOLDER = (
+        Path(os.environ["DOMINO_DATASETS_DIR"])
+        / "local"
+        / os.environ["DOMINO_PROJECT_NAME"]
+        / "articledetectivereview_assets"
+        / "uploaded_documents"
+    )
+else:
+    # Running locally
+    ASSET_FOLDER = Path("./uploaded_documents")
+
 ASSET_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
@@ -63,6 +76,13 @@ def main():
     )
 
     st.title("🔍 Article Detective - Document Analysis")
+
+    # Show environment info
+    if "DOMINO_DATASETS_DIR" in os.environ:
+        st.info(f"🏢 Running on Domino Data Lab - Output folder: `{ASSET_FOLDER}`")
+    else:
+        st.info(f"💻 Running locally - Output folder: `{ASSET_FOLDER}`")
+
     st.markdown("---")
 
     # File upload section
