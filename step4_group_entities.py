@@ -100,8 +100,8 @@ def main():
     print("Grouping entities...")
     groups = group_entities(entities, llm)
 
-    # Build unique grouped entities
-    grouped_entities = []
+    # Build unique grouped entities as dict
+    grouped_entities = {}
     processed_names = set()
 
     for group in groups:
@@ -118,28 +118,18 @@ def main():
                 processed_names.add(variation)
 
         if best_entity:
-            # Create merged entity
-            merged_entity = {
-                "entity": canonical_name,
-                "description": best_entity.get("description", ""),
-                "related_entities": best_entity.get("related_entities", [])
-            }
-            if len(variations) > 1:
-                merged_entity["also_known_as"] = [v for v in variations if v != canonical_name]
-
-            grouped_entities.append(merged_entity)
+            # Add to dict: entity_name -> description
+            grouped_entities[canonical_name] = best_entity.get("description", "")
 
     # Add entities that weren't grouped
     for entity_data in entities:
         entity_name = entity_data.get("entity", "")
         if entity_name not in processed_names:
-            grouped_entities.append(entity_data)
+            grouped_entities[entity_name] = entity_data.get("description", "")
 
-    # Save output in same format as entity_descriptions.json
-    output = {"entities": grouped_entities}
-
+    # Save output as simple dict: {"entity1": "description1", ...}
     with open("dict_unique_grouped_entity_summary.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2)
+        json.dump(grouped_entities, f, indent=2)
 
     print(f"Saved: dict_unique_grouped_entity_summary.json")
     print(f"Original count: {len(entities)}")

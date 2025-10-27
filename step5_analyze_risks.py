@@ -95,29 +95,36 @@ def main():
     print(f"Checking for {len(FINANCIAL_CRIMES)} financial crime types")
 
     # Read entity descriptions (try grouped first, fallback to original)
-    data = None
+    entities_dict = None
     try:
         print("Reading dict_unique_grouped_entity_summary.json...")
         with open("dict_unique_grouped_entity_summary.json", "r", encoding="utf-8") as f:
             data = json.load(f)
-        print("Using grouped entities")
+        # Check if it's the new dict format {"entity1": "desc1", ...}
+        if isinstance(data, dict) and "entities" not in data:
+            entities_dict = data
+            print("Using grouped entities (dict format)")
+        else:
+            # Old format with "entities" list
+            entities_dict = {e.get("entity", ""): e.get("description", "") for e in data.get("entities", [])}
+            print("Using grouped entities (list format)")
     except FileNotFoundError:
         print("Reading entity_descriptions.json...")
         try:
             with open("entity_descriptions.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
+            # Format: {"entities": [{"entity": "name", "description": "..."}]}
+            entities_dict = {e.get("entity", ""): e.get("description", "") for e in data.get("entities", [])}
             print("Using original entities")
         except FileNotFoundError:
             print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
             sys.exit(1)
 
-    # Extract entities list
-    entities = data.get("entities", [])
-    if not entities:
+    if not entities_dict:
         print("No entities found in input file")
         sys.exit(1)
 
-    print(f"Analyzing {len(entities)} entities...")
+    print(f"Analyzing {len(entities_dict)} entities...")
 
     # Initialize Azure OpenAI LLM
     llm = AzureOpenAI(
@@ -130,11 +137,8 @@ def main():
 
     # Analyze each entity and build results progressively
     flagged_entities = []
-    for i, entity_data in enumerate(entities, 1):
-        entity_name = entity_data.get("entity", "")
-        entity_description = entity_data.get("description", "")
-
-        print(f"  [{i}/{len(entities)}] Analyzing {entity_name}...")
+    for i, (entity_name, entity_description) in enumerate(entities_dict.items(), 1):
+        print(f"  [{i}/{len(entities_dict)}] Analyzing {entity_name}...")
 
         result = analyze_entity(entity_name, entity_description, llm)
 
