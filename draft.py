@@ -46,3 +46,13 @@ result = program(entities_str=json.dumps(entities, indent=2))
 
 # Print the result
 print(result.model_dump_json(indent=2))
+
+
+
+
+
+entities_list = data['entities']
+entities_formatted = "\n".join([
+    f"- {ent['entity']}: {ent['description']} (Related: {', '.join(ent['related_entities'])})"
+    for ent in entities_list
+])
