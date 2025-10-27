@@ -18,6 +18,27 @@ import json
 from openai import OpenAI
 
 
+def load_entity_descriptions(filepath):
+    """Load entity descriptions and convert to dict format"""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    descriptions = {}
+
+    # Handle array format: {"entities": [...]}
+    if isinstance(data, dict) and "entities" in data:
+        for entity_data in data["entities"]:
+            # Support both "entity" and "name" fields
+            entity_name = entity_data.get("entity") or entity_data.get("name")
+            if entity_name:
+                descriptions[entity_name] = entity_data
+    # Handle dict format: {"entity_name": {...}}
+    elif isinstance(data, dict):
+        descriptions = data
+
+    return descriptions
+
+
 def group_entities(persons, companies, entity_descriptions, api_key):
     """Group similar entities together using OpenAI"""
     client = OpenAI(api_key=api_key)
@@ -28,7 +49,6 @@ def group_entities(persons, companies, entity_descriptions, api_key):
         desc = entity_descriptions.get(person, {})
         info = {
             "name": person,
-            "role": desc.get("role", "unknown"),
             "description": desc.get("description", "")[:200]  # Truncate
         }
         persons_with_info.append(info)
@@ -38,7 +58,6 @@ def group_entities(persons, companies, entity_descriptions, api_key):
         desc = entity_descriptions.get(company, {})
         info = {
             "name": company,
-            "role": desc.get("role", "unknown"),
             "description": desc.get("description", "")[:200]
         }
         companies_with_info.append(info)
@@ -75,7 +94,11 @@ def _group_entity_type(client, entities_with_info, entity_type):
     # Build entity context for the prompt
     entity_list = []
     for idx, entity in enumerate(entities_with_info):
-        entity_list.append(f"{idx + 1}. {entity['name']} - Role: {entity['role']}")
+        desc = entity.get('description', '')
+        if desc:
+            entity_list.append(f"{idx + 1}. {entity['name']} - {desc[:100]}")
+        else:
+            entity_list.append(f"{idx + 1}. {entity['name']}")
 
     entity_text = "\n".join(entity_list)
 
@@ -173,10 +196,13 @@ def merge_entity_descriptions(grouped_entities, entity_descriptions):
                 all_descriptions,
                 key=lambda d: len(d.get('description', ''))
             )
+
+            # Build merged description in consistent format
             merged_descriptions[canonical_name] = {
-                **best_desc,
-                "name": canonical_name,
-                "also_known_as": variations,
+                "entity": canonical_name,
+                "description": best_desc.get('description', ''),
+                "related_entities": best_desc.get('related_entities', []),
+                "also_known_as": [v for v in variations if v != canonical_name],
                 "merged_from": len(variations)
             }
 
@@ -195,10 +221,12 @@ def merge_entity_descriptions(grouped_entities, entity_descriptions):
                 all_descriptions,
                 key=lambda d: len(d.get('description', ''))
             )
+
             merged_descriptions[canonical_name] = {
-                **best_desc,
-                "name": canonical_name,
-                "also_known_as": variations,
+                "entity": canonical_name,
+                "description": best_desc.get('description', ''),
+                "related_entities": best_desc.get('related_entities', []),
+                "also_known_as": [v for v in variations if v != canonical_name],
                 "merged_from": len(variations)
             }
 
@@ -224,8 +252,7 @@ def main():
     # Read entity descriptions
     print("Reading entity_descriptions.json...")
     try:
-        with open("entity_descriptions.json", "r", encoding="utf-8") as f:
-            entity_descriptions = json.load(f)
+        entity_descriptions = load_entity_descriptions("entity_descriptions.json")
     except FileNotFoundError:
         print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
         sys.exit(1)
@@ -267,6 +294,11 @@ def main():
     print("\nMerging entity descriptions...")
     merged_descriptions = merge_entity_descriptions(grouped, entity_descriptions)
 
+    # Create output in array format (matching user's format)
+    entities_array = []
+    for entity_name, data in merged_descriptions.items():
+        entities_array.append(data)
+
     # Create output
     output = {
         "groupings": grouped,
@@ -280,7 +312,9 @@ def main():
             "companies": len(companies),
             "total": len(persons) + len(companies)
         },
-        "merged_descriptions": merged_descriptions
+        "merged_descriptions": {
+            "entities": entities_array
+        }
     }
 
     # Save grouped entities
