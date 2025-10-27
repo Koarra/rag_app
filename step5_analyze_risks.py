@@ -204,12 +204,7 @@ def main():
 
     # Build results
     risk_assessment = {
-        "flagged_entities": flagged_entities,
-        "crime_definitions": {crime: desc for crime, desc in zip(
-            FINANCIAL_CRIMES,
-            [line.split(' - ', 1)[1] if ' - ' in line else line
-             for line in CRIME_DESCRIPTIONS.strip().split('\n') if line.strip() and not line.startswith('Look')]
-        )}
+        "flagged_entities": flagged_entities
     }
 
     # Save risk assessment
