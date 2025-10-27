@@ -2,7 +2,7 @@
 STEP 5: Analyze risks - flag entities for financial crimes
 
 Usage: python step5_analyze_risks.py
-Reads: extracted_text.txt, grouped_entities.json OR entity_descriptions.json (from previous steps)
+Reads: grouped_entities.json OR entity_descriptions.json (from previous steps)
 Output: Creates risk_assessment.json with flagged entities
 """
 
@@ -85,64 +85,6 @@ def load_entity_descriptions_from_data(data):
         descriptions = data
 
     return descriptions
-
-
-def analyze_document_risk(text, api_key):
-    """Analyze document for financial crimes"""
-    client = OpenAI(api_key=api_key)
-
-    text_to_analyze = text[:15000]
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "system",
-                "content": f"""You are a financial crime analyst. Analyze documents for the following financial crimes:
-
-{CRIME_DESCRIPTIONS}
-
-Focus on evidence-based analysis. Only flag crimes with credible indicators."""
-            },
-            {
-                "role": "user",
-                "content": f"""Analyze this document for financial crime indicators.
-
-Look for evidence of these crimes:
-{CRIME_DESCRIPTIONS}
-
-Document:
-{text_to_analyze}"""
-            }
-        ],
-        temperature=0.1,
-        max_tokens=1500,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "document_risk",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "overall_risk_level": {"type": "string", "enum": ["high", "medium", "low", "none"]},
-                        "crimes_detected": {
-                            "type": "array",
-                            "description": "List of crimes detected in the document",
-                            "items": {"type": "string", "enum": FINANCIAL_CRIMES}
-                        },
-                        "red_flags": {"type": "array", "items": {"type": "string"}},
-                        "suspicious_patterns": {"type": "array", "items": {"type": "string"}},
-                        "analysis_summary": {"type": "string"}
-                    },
-                    "required": ["overall_risk_level", "crimes_detected", "red_flags", "suspicious_patterns", "analysis_summary"],
-                    "additionalProperties": False
-                }
-            }
-        }
-    )
-
-    return json.loads(response.choices[0].message.content)
 
 
 def analyze_entity_risks(entity_descriptions, api_key):
@@ -234,15 +176,6 @@ def main():
     print(f"\n=== STEP 5: ANALYZE RISKS ===")
     print(f"Checking for {len(FINANCIAL_CRIMES)} financial crime types")
 
-    # Read extracted text
-    print("Reading extracted_text.txt...")
-    try:
-        with open("extracted_text.txt", "r", encoding="utf-8") as f:
-            text = f.read()
-    except FileNotFoundError:
-        print("Error: extracted_text.txt not found. Run step1_summarize.py first.")
-        sys.exit(1)
-
     # Read entity descriptions (try grouped first, fallback to original)
     entity_descriptions = None
 
@@ -265,17 +198,12 @@ def main():
             print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
             sys.exit(1)
 
-    # Analyze document risk
-    print("Analyzing document for financial crimes...")
-    document_risk = analyze_document_risk(text, api_key)
-
     # Analyze entity risks
     print("Analyzing entity risks...")
     flagged_entities = analyze_entity_risks(entity_descriptions, api_key)
 
-    # Combine results
+    # Build results
     risk_assessment = {
-        "document_risk": document_risk,
         "flagged_entities": flagged_entities,
         "crime_definitions": {crime: desc for crime, desc in zip(
             FINANCIAL_CRIMES,
@@ -289,9 +217,6 @@ def main():
         json.dump(risk_assessment, f, indent=2)
 
     print("Saved: risk_assessment.json")
-
-    print(f"\nDocument Risk: {document_risk['overall_risk_level'].upper()}")
-    print(f"Crimes Detected in Document: {', '.join(document_risk['crimes_detected']) if document_risk['crimes_detected'] else 'None'}")
     print(f"\nFlagged Entities: {len(flagged_entities)}")
 
     for entity in flagged_entities:
