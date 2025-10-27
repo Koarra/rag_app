@@ -2,9 +2,7 @@ import json
 from pydantic import BaseModel, Field
 from typing import List, Dict
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-from llama_index.core.base.llms.types import ChatMessage
-from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
-from risklab.openai.openai import get_llm_openai
+from llama_index.core.program import LLMTextCompletionProgram
 from llama_index.llms.azure_openai import AzureOpenAI
 
 # Your Pydantic models
@@ -30,26 +28,21 @@ entities = {
     "ACME Corp": "ACME Corp was fined for environmental violations but not criminally charged."
 }
 
-# Create prompt
-prompt = f"""You are a legal analyst. Analyze each entity and identify any crimes they appear to have committed.
+# Create the program
+program = LLMTextCompletionProgram.from_defaults(
+    output_cls=CrimeAnalysis,
+    llm=llm,
+    prompt_template_str="""You are a legal analyst. Analyze each entity and identify any crimes they appear to have committed.
 Return a JSON strictly matching this schema:
 
 Entities:
-{json.dumps(entities, indent=2)}
-"""
-
-# Use structured_predict directly - this is the simplest approach
-result = llm.structured_predict(
-    output_cls=CrimeAnalysis,
-    prompt=prompt
+{entities_str}
+""",
+    verbose=True
 )
+
+# Call the program
+result = program(entities_str=json.dumps(entities, indent=2))
 
 # Print the result
 print(result.model_dump_json(indent=2))
-
-# Or access specific fields
-print("\nEntities analyzed:")
-for entity_name, crime_info in result.entities.items():
-    print(f"\n{entity_name}:")
-    print(f"  Crimes: {crime_info.crimes}")
-    print(f"  Evidence: {crime_info.evidence}")
