@@ -7,6 +7,8 @@ Output: Creates entity_descriptions.json with detailed info for each entity
 """
 
 import json
+import sys
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Dict
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -51,14 +53,20 @@ Document:
 
 
 def main():
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step3_describe_entities.py <output_folder>")
+        sys.exit(1)
+
+    output_folder = Path(sys.argv[1])
+    output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 3: DESCRIBE ENTITIES ===")
+    print(f"Output folder: {output_folder}")
 
     # Read extracted text
     print("Reading extracted_text.txt...")
     try:
-        with open("extracted_text.txt", "r", encoding="utf-8") as f:
+        with open(output_folder / "extracted_text.txt", "r", encoding="utf-8") as f:
             text = f.read()
     except FileNotFoundError:
         print("Error: extracted_text.txt not found. Run step1_summarize.py first.")
@@ -67,7 +75,7 @@ def main():
     # Read entities
     print("Reading entities.json...")
     try:
-        with open("entities.json", "r", encoding="utf-8") as f:
+        with open(output_folder / "entities.json", "r", encoding="utf-8") as f:
             entities = json.load(f)
     except FileNotFoundError:
         print("Error: entities.json not found. Run step2_extract_entities.py first.")
@@ -90,10 +98,10 @@ def main():
     descriptions_dict = describe_entities(text, persons, companies, llm)
 
     # Save descriptions in simple dict format: {"entity": "description"}
-    with open("entity_descriptions.json", "w", encoding="utf-8") as f:
+    with open(output_folder / "entity_descriptions.json", "w", encoding="utf-8") as f:
         json.dump(descriptions_dict, f, indent=2)
 
-    print("Saved: entity_descriptions.json")
+    print(f"Saved: {output_folder}/entity_descriptions.json")
     print(f"\nGenerated descriptions for {len(descriptions_dict)} entities")
 
     for entity_name, description in descriptions_dict.items():

@@ -7,6 +7,8 @@ Output: Creates graph_elements.json with nodes and edges for visualization
 """
 
 import json
+import sys
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -94,21 +96,27 @@ Classify the relationship and provide reasoning.
 
 
 def main():
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step6_extract_relationships.py <output_folder>")
+        sys.exit(1)
+
+    output_folder = Path(sys.argv[1])
+    output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 6: EXTRACT RELATIONSHIPS ===")
+    print(f"Output folder: {output_folder}")
 
     # Read entity descriptions (try grouped first, fallback to original)
     entities_dict = None
     try:
         print("Reading dict_unique_grouped_entity_summary.json...")
-        with open("dict_unique_grouped_entity_summary.json", "r", encoding="utf-8") as f:
+        with open(output_folder / "dict_unique_grouped_entity_summary.json", "r", encoding="utf-8") as f:
             entities_dict = json.load(f)
         print("Using grouped entities")
     except FileNotFoundError:
         print("Reading entity_descriptions.json...")
         try:
-            with open("entity_descriptions.json", "r", encoding="utf-8") as f:
+            with open(output_folder / "entity_descriptions.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
             # Handle both formats
             if isinstance(data, dict) and "entities" not in data:
@@ -124,7 +132,7 @@ def main():
     flagged_entities = set()
     try:
         print("Reading risk_assessment.json...")
-        with open("risk_assessment.json", "r", encoding="utf-8") as f:
+        with open(output_folder / "risk_assessment.json", "r", encoding="utf-8") as f:
             risk_data = json.load(f)
         for entity in risk_data.get("flagged_entities", []):
             flagged_entities.add(entity["entity_name"])
@@ -185,16 +193,16 @@ def main():
             print(f"    -> Error: {e}")
 
     # Save all relationships
-    with open("entity_relationships.json", "w", encoding="utf-8") as f:
+    with open(output_folder / "entity_relationships.json", "w", encoding="utf-8") as f:
         json.dump(relationships, f, indent=2)
-    print(f"\nSaved: entity_relationships.json")
+    print(f"\nSaved: {output_folder}/entity_relationships.json")
 
     # Filter to keep only meaningful relationships (excluding "Other relationship")
     filtered_relationships = [r for r in relationships if r["relationship"] != "Other relationship"]
 
-    with open("entity_relationships_filtered.json", "w", encoding="utf-8") as f:
+    with open(output_folder / "entity_relationships_filtered.json", "w", encoding="utf-8") as f:
         json.dump(filtered_relationships, f, indent=2)
-    print(f"Saved: entity_relationships_filtered.json ({len(filtered_relationships)} meaningful relationships)")
+    print(f"Saved: {output_folder}/entity_relationships_filtered.json ({len(filtered_relationships)} meaningful relationships)")
 
     # Create graph structure
     print("\nCreating knowledge graph...")
@@ -238,10 +246,10 @@ def main():
         "edges": edges
     }
 
-    with open("graph_elements.json", "w", encoding="utf-8") as f:
+    with open(output_folder / "graph_elements.json", "w", encoding="utf-8") as f:
         json.dump(graph_elements, f, indent=2)
 
-    print(f"Saved: graph_elements.json")
+    print(f"Saved: {output_folder}/graph_elements.json")
     print(f"  Nodes: {len(nodes)}")
     print(f"  Edges: {len(edges)}")
     print(f"  Flagged entities: {len(flagged_entities)}")

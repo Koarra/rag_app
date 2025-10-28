@@ -1,7 +1,7 @@
 """
 MAIN SCRIPT - Run all steps in sequence
 
-Usage: python run_pipeline.py <input_document.pdf> [--skip-grouping]
+Usage: python run_pipeline.py <input_document.pdf> [output_folder] [--skip-grouping]
 
 This script runs all 6 steps automatically:
 1. Extract text and summarize
@@ -37,13 +37,28 @@ def run_step(script_name, args):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python run_pipeline.py <input_document.pdf> [--skip-grouping]")
+        print("Usage: python run_pipeline.py <input_document.pdf> [output_folder] [--skip-grouping]")
         print("\nExample: python run_pipeline.py contract.pdf")
-        print("Example: python run_pipeline.py contract.pdf --skip-grouping")
+        print("Example: python run_pipeline.py contract.pdf ./outputs")
+        print("Example: python run_pipeline.py contract.pdf ./outputs --skip-grouping")
         sys.exit(1)
 
     input_file = sys.argv[1]
+
+    # Determine output folder and skip_grouping flag
     skip_grouping = "--skip-grouping" in sys.argv
+    output_folder = None
+
+    for arg in sys.argv[2:]:
+        if arg != "--skip-grouping":
+            output_folder = Path(arg)
+            break
+
+    if output_folder is None:
+        # Default output folder based on input filename
+        output_folder = Path("outputs") / Path(input_file).stem
+
+    output_folder.mkdir(parents=True, exist_ok=True)
 
     # Check file exists
     if not Path(input_file).exists():
@@ -54,6 +69,7 @@ def main():
     print("DOCUMENT PROCESSING PIPELINE")
     print("="*60)
     print(f"Input file: {input_file}")
+    print(f"Output folder: {output_folder}")
     print("Using Azure OpenAI with DefaultAzureCredential")
 
     if skip_grouping:
@@ -76,15 +92,15 @@ def main():
     print("="*60)
 
     # Run all steps
-    run_step("step1_summarize.py", [input_file])
-    run_step("step2_extract_entities.py", [])
-    run_step("step3_describe_entities.py", [])
+    run_step("step1_summarize.py", [input_file, str(output_folder)])
+    run_step("step2_extract_entities.py", [str(output_folder)])
+    run_step("step3_describe_entities.py", [str(output_folder)])
 
     if not skip_grouping:
-        run_step("step4_group_entities.py", [])
+        run_step("step4_group_entities.py", [str(output_folder)])
 
-    run_step("step5_analyze_risks.py", [])
-    run_step("step6_extract_relationships.py", [])
+    run_step("step5_analyze_risks.py", [str(output_folder)])
+    run_step("step6_extract_relationships.py", [str(output_folder)])
 
     # Show final results
     print("\n" + "="*60)

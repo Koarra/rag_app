@@ -7,6 +7,8 @@ Output: Creates dict_unique_grouped_entity_summary.json with grouped entities
 """
 
 import json
+import sys
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -61,14 +63,20 @@ Only group entities if you're confident they're the same person. When in doubt, 
 
 
 def main():
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step4_group_entities.py <output_folder>")
+        sys.exit(1)
+
+    output_folder = Path(sys.argv[1])
+    output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 4: GROUP ENTITIES ===")
+    print(f"Output folder: {output_folder}")
 
     # Read entity descriptions
     print("Reading entity_descriptions.json...")
     try:
-        with open("entity_descriptions.json", "r", encoding="utf-8") as f:
+        with open(output_folder / "entity_descriptions.json", "r", encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         print("Error: entity_descriptions.json not found. Run step3_describe_entities.py first.")
@@ -129,10 +137,10 @@ def main():
                 del grouped_entities[variation]
 
     # Save output as simple dict: {"entity1": "description1", ...}
-    with open("dict_unique_grouped_entity_summary.json", "w", encoding="utf-8") as f:
+    with open(output_folder / "dict_unique_grouped_entity_summary.json", "w", encoding="utf-8") as f:
         json.dump(grouped_entities, f, indent=2)
 
-    print(f"Saved: dict_unique_grouped_entity_summary.json")
+    print(f"Saved: {output_folder}/dict_unique_grouped_entity_summary.json")
     print(f"Original count: {len(entities_dict)}")
     print(f"Grouped count: {len(grouped_entities)}")
     print(f"Duplicates removed: {len(entities_dict) - len(grouped_entities)}")
