@@ -20,6 +20,7 @@ from datetime import datetime
 import pandas as pd
 import os
 from st_link_analysis import st_link_analysis, NodeStyle, EdgeStyle
+from database_utils import save_to_database, create_dataframe_from_results
 
 # Configuration - Support both Domino and local environments
 if "DOMINO_DATASETS_DIR" in os.environ and "DOMINO_PROJECT_NAME" in os.environ:
@@ -36,6 +37,10 @@ else:
     ASSET_FOLDER = Path("./uploaded_documents")
 
 ASSET_FOLDER.mkdir(parents=True, exist_ok=True)
+
+# Database configuration
+SQLITE_DB_PATH = ASSET_FOLDER / "articledetective_feedback.db"
+DUCKDB_DB_PATH = ASSET_FOLDER / "articledetective_feedback.duckdb"
 
 
 def transform_string(input_string):
@@ -396,6 +401,83 @@ def main():
 
                 except Exception as e:
                     st.error(f"Could not load relationships: {e}")
+
+            # ============================================
+            # Section 6: Save to Database
+            # ============================================
+            st.markdown("---")
+            with st.container():
+                st.markdown("### 💾 Save Results to Database")
+
+                st.info("Save your analysis results to the database for tracking and history.")
+
+                # Initialize session state for comments
+                if 'entity_comments' not in st.session_state:
+                    st.session_state.entity_comments = {}
+
+                # Load entities for commenting
+                try:
+                    with open(outputs_folder / "dict_unique_grouped_entity_summary.json", "r") as f:
+                        entities = json.load(f)
+
+                    with open(outputs_folder / "risk_assessment.json", "r") as f:
+                        risk_assessment = json.load(f)
+
+                    # Allow adding comments to entities
+                    with st.expander("Add Comments to Entities (Optional)"):
+                        st.write("Add comments or notes for specific entities before saving:")
+
+                        for entity_name in list(entities.keys())[:10]:  # Show first 10 entities
+                            comment = st.text_input(
+                                f"Comment for **{entity_name}**:",
+                                value=st.session_state.entity_comments.get(entity_name, ""),
+                                key=f"comment_{entity_name}"
+                            )
+                            st.session_state.entity_comments[entity_name] = comment
+
+                    # Save button
+                    col1, col2 = st.columns([1, 3])
+                    with col1:
+                        if st.button("💾 Save to Database", type="primary"):
+                            # Create DataFrame from results
+                            df = create_dataframe_from_results(
+                                entities,
+                                risk_assessment,
+                                st.session_state.entity_comments
+                            )
+
+                            # Generate table name from folder
+                            folder_name = outputs_folder.parent.name
+                            table_name = f"entities_{re.sub(r'[^a-zA-Z0-9]', '_', folder_name)}"
+
+                            # Get or create session ID
+                            if 'session_id' not in st.session_state:
+                                st.session_state.session_id = hashlib.sha256(
+                                    str(datetime.now()).encode()
+                                ).hexdigest()[:16]
+
+                            # Save to database
+                            success, message = save_to_database(
+                                df,
+                                table_name,
+                                st.session_state.session_id,
+                                SQLITE_DB_PATH,
+                                DUCKDB_DB_PATH
+                            )
+
+                            if success:
+                                st.success(message)
+                                st.balloons()
+                            else:
+                                st.error(message)
+
+                    with col2:
+                        st.caption(f"Session ID: {st.session_state.get('session_id', 'Not generated')}")
+                        st.caption(f"SQLite: {SQLITE_DB_PATH}")
+                        st.caption(f"DuckDB: {DUCKDB_DB_PATH}")
+
+                except Exception as e:
+                    st.error(f"Could not prepare database save: {e}")
 
 
 if __name__ == "__main__":
