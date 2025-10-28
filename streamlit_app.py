@@ -417,10 +417,10 @@ def main():
                     table {
                         width: 100%;
                         border-collapse: collapse;
-                        table-layout: fixed;
+                        table-layout: auto;
                     }
                     thead {
-                        height: 200px;
+                        height: 140px;
                     }
                     th {
                         background-color: #f0f2f6;
@@ -433,28 +433,28 @@ def main():
                         z-index: 10;
                         overflow: visible;
                     }
-                    /* Diagonal headers for crime columns */
+                    /* Diagonal headers for crime columns - more horizontal */
                     th:nth-child(n+4) {
-                        height: 200px;
-                        min-width: 60px;
-                        max-width: 60px;
+                        height: 140px;
+                        min-width: 35px;
+                        max-width: 35px;
+                        width: 35px;
                         padding: 0;
-                        text-align: left;
+                        text-align: center;
                         vertical-align: bottom;
                         position: relative;
                         overflow: visible;
                     }
                     th:nth-child(n+4) > div {
-                        transform: rotate(-45deg);
-                        transform-origin: center center;
                         position: absolute;
-                        bottom: 50%;
+                        bottom: 8px;
                         left: 50%;
-                        transform: translate(-50%, 50%) rotate(-45deg);
+                        transform: translateX(-50%) rotate(-30deg);
+                        transform-origin: center bottom;
                         white-space: nowrap;
-                        width: 200px;
+                        width: 180px;
                         text-align: left;
-                        font-size: 12px;
+                        font-size: 11px;
                     }
                     /* Keep first 3 columns (Entity, Summary, Flagged) horizontal */
                     th:nth-child(1), th:nth-child(2), th:nth-child(3) {
@@ -462,26 +462,52 @@ def main():
                         min-width: auto;
                         vertical-align: middle;
                     }
+                    /* Entity column */
+                    th:nth-child(1) {
+                        min-width: 150px;
+                    }
+                    /* Summary column - much wider */
+                    th:nth-child(2) {
+                        min-width: 600px;
+                        max-width: 800px;
+                    }
+                    /* Flagged column */
+                    th:nth-child(3) {
+                        min-width: 80px;
+                        text-align: center;
+                    }
                     td {
                         padding: 8px;
                         border: 1px solid #ddd;
                         text-align: center;
+                        vertical-align: middle;
                     }
                     /* Left align text for Entity and Summary columns */
                     td:nth-child(1), td:nth-child(2) {
                         text-align: left;
                     }
-                    /* Summary column specific styling */
-                    td:nth-child(2) {
-                        max-width: 400px;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: pre-wrap;
+                    /* Entity column cells */
+                    td:nth-child(1) {
+                        min-width: 150px;
+                        font-weight: 500;
                     }
-                    /* Narrow columns for crime checkmarks */
+                    /* Summary column cells - wider with wrapping */
+                    td:nth-child(2) {
+                        min-width: 600px;
+                        max-width: 800px;
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                    }
+                    /* Flagged column cells */
+                    td:nth-child(3) {
+                        min-width: 80px;
+                    }
+                    /* Very narrow columns for crime checkmarks */
                     td:nth-child(n+4) {
-                        min-width: 60px;
-                        max-width: 60px;
+                        min-width: 35px;
+                        max-width: 35px;
+                        width: 35px;
+                        padding: 4px;
                     }
                     tr:hover {
                         background-color: #f5f5f5;
