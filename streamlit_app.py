@@ -371,12 +371,26 @@ def main():
                     # Wrap table in a scrollable container
                     st.markdown('<div style="overflow-x: auto;">', unsafe_allow_html=True)
 
-                    # Use st.data_editor for better display with HTML rendering
-                    st.markdown(styled_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+                    # Generate HTML table
+                    html_table = styled_df.to_html(escape=False, index=False)
+
+                    # Wrap crime column headers in divs for rotation
+                    # This wraps headers from column 4 onwards (after Entity, Summary, Flagged)
+                    import re
+                    def wrap_header(match):
+                        header_text = match.group(1)
+                        # Check if it's a crime column (not Entity, Summary, or Flagged)
+                        if header_text not in ["Entity", "Summary", "Flagged"]:
+                            return f'<th><div>{header_text}</div></th>'
+                        return match.group(0)
+
+                    html_table = re.sub(r'<th>([^<]+)</th>', wrap_header, html_table)
+
+                    st.markdown(html_table, unsafe_allow_html=True)
 
                     st.markdown('</div>', unsafe_allow_html=True)
 
-                    # Add CSS for better table styling with vertical headers
+                    # Add CSS for better table styling with diagonal headers
                     st.markdown("""
                     <style>
                     table {
@@ -393,22 +407,28 @@ def main():
                         top: 0;
                         z-index: 10;
                     }
-                    /* Vertical headers for crime columns */
+                    /* Diagonal headers for crime columns */
                     th:nth-child(n+4) {
-                        writing-mode: vertical-rl;
-                        transform: rotate(180deg);
-                        white-space: nowrap;
-                        height: 150px;
-                        min-width: 30px;
-                        max-width: 30px;
-                        padding: 5px;
+                        height: 120px;
+                        min-width: 50px;
+                        max-width: 50px;
+                        padding: 0;
                         text-align: center;
                         vertical-align: bottom;
+                        position: relative;
+                    }
+                    th:nth-child(n+4) > div {
+                        transform: rotate(-45deg);
+                        transform-origin: left bottom;
+                        position: absolute;
+                        bottom: 10px;
+                        left: 25px;
+                        white-space: nowrap;
+                        width: 150px;
+                        text-align: left;
                     }
                     /* Keep first 3 columns (Entity, Summary, Flagged) horizontal */
                     th:nth-child(1), th:nth-child(2), th:nth-child(3) {
-                        writing-mode: horizontal-tb;
-                        transform: none;
                         height: auto;
                         min-width: auto;
                     }
@@ -430,8 +450,8 @@ def main():
                     }
                     /* Narrow columns for crime checkmarks */
                     td:nth-child(n+4) {
-                        min-width: 30px;
-                        max-width: 30px;
+                        min-width: 50px;
+                        max-width: 50px;
                     }
                     tr:hover {
                         background-color: #f5f5f5;
