@@ -411,7 +411,7 @@ def main():
 
                     st.markdown('</div>', unsafe_allow_html=True)
 
-                    # Add CSS for better table styling with diagonal headers
+                    # Add CSS for better table styling with vertical headers
                     st.markdown("""
                     <style>
                     table {
@@ -420,7 +420,7 @@ def main():
                         table-layout: auto;
                     }
                     thead {
-                        height: 140px;
+                        height: 180px;
                     }
                     th {
                         background-color: #f0f2f6;
@@ -433,9 +433,9 @@ def main():
                         z-index: 10;
                         overflow: visible;
                     }
-                    /* Diagonal headers for crime columns - more horizontal */
+                    /* Vertical headers for crime columns */
                     th:nth-child(n+4) {
-                        height: 140px;
+                        height: 180px;
                         min-width: 35px;
                         max-width: 35px;
                         width: 35px;
@@ -446,14 +446,14 @@ def main():
                         overflow: visible;
                     }
                     th:nth-child(n+4) > div {
+                        writing-mode: vertical-rl;
+                        transform: rotate(180deg);
                         position: absolute;
                         bottom: 8px;
                         left: 50%;
-                        transform: translateX(-50%) rotate(-30deg);
-                        transform-origin: center bottom;
+                        transform: translateX(-50%) rotate(180deg);
                         white-space: nowrap;
-                        width: 180px;
-                        text-align: left;
+                        text-align: center;
                         font-size: 11px;
                     }
                     /* Keep first 3 columns (Entity, Summary, Flagged) horizontal */
