@@ -19,7 +19,7 @@ import re
 from datetime import datetime
 import pandas as pd
 import os
-from streamlit_link_analysis import st_link_analysis
+from st_link_analysis import st_link_analysis, NodeStyle, EdgeStyle
 
 # Configuration - Support both Domino and local environments
 if "DOMINO_DATASETS_DIR" in os.environ and "DOMINO_PROJECT_NAME" in os.environ:
@@ -248,11 +248,34 @@ def main():
                     try:
                         # Load graph elements for visualization
                         with open(outputs_folder / "graph_elements.json", "r") as f:
-                            graph_data = json.load(f)
+                            elements = json.load(f)
 
                         # Display interactive graph
                         st.subheader("Entity Relationship Graph")
-                        st_link_analysis(graph_data, height=600, width=800)
+
+                        # Style nodes & edges for graph
+                        edge_styles = [
+                            EdgeStyle("Owner", caption="label", directed=False),
+                            EdgeStyle("Investor", caption="label", directed=False),
+                            EdgeStyle("Partner", caption="label", directed=False),
+                            EdgeStyle("Shareholder", caption="label", directed=False),
+                            EdgeStyle("Representative", caption="label", directed=False),
+                            EdgeStyle("Beneficiary", caption="label", directed=False),
+                            EdgeStyle("Other relationship", caption="label", directed=False),
+                        ]
+
+                        node_styles = [
+                            NodeStyle("PERSON", "#FF7F3E", "name", "person"),
+                            NodeStyle("FLAGGED", "#2A629A", "name", "flag"),
+                        ]
+
+                        st_link_analysis(
+                            elements,
+                            node_styles=node_styles,
+                            edge_styles=edge_styles,
+                            layout="cose",
+                            key="knowledge_graph"
+                        )
 
                         # Also show relationships table
                         st.markdown("---")
