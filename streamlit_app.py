@@ -396,6 +396,10 @@ def main():
                     table {
                         width: 100%;
                         border-collapse: collapse;
+                        table-layout: fixed;
+                    }
+                    thead {
+                        height: 200px;
                     }
                     th {
                         background-color: #f0f2f6;
@@ -406,31 +410,35 @@ def main():
                         position: sticky;
                         top: 0;
                         z-index: 10;
+                        overflow: visible;
                     }
                     /* Diagonal headers for crime columns */
                     th:nth-child(n+4) {
-                        height: 120px;
-                        min-width: 50px;
-                        max-width: 50px;
+                        height: 200px;
+                        min-width: 60px;
+                        max-width: 60px;
                         padding: 0;
-                        text-align: center;
+                        text-align: left;
                         vertical-align: bottom;
                         position: relative;
+                        overflow: visible;
                     }
                     th:nth-child(n+4) > div {
                         transform: rotate(-45deg);
-                        transform-origin: left bottom;
+                        transform-origin: bottom left;
                         position: absolute;
-                        bottom: 10px;
-                        left: 25px;
+                        bottom: 5px;
+                        left: 45px;
                         white-space: nowrap;
-                        width: 150px;
+                        width: 200px;
                         text-align: left;
+                        font-size: 12px;
                     }
                     /* Keep first 3 columns (Entity, Summary, Flagged) horizontal */
                     th:nth-child(1), th:nth-child(2), th:nth-child(3) {
                         height: auto;
                         min-width: auto;
+                        vertical-align: middle;
                     }
                     td {
                         padding: 8px;
@@ -450,8 +458,8 @@ def main():
                     }
                     /* Narrow columns for crime checkmarks */
                     td:nth-child(n+4) {
-                        min-width: 50px;
-                        max-width: 50px;
+                        min-width: 60px;
+                        max-width: 60px;
                     }
                     tr:hover {
                         background-color: #f5f5f5;
