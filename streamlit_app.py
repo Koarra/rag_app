@@ -74,7 +74,7 @@ def main():
         layout="wide"
     )
 
-    st.title("🔍 Article Detective - Document Analysis")
+    st.title("🔍 Article Detective")
 
     # Show environment info
     if "DOMINO_DATASETS_DIR" in os.environ:
@@ -85,7 +85,7 @@ def main():
     st.markdown("---")
 
     # File upload section
-    st.header("1. Upload Documents")
+    st.header("Upload Documents")
     uploaded_files = st.file_uploader(
         "Choose your files",
         type=["docx", "pdf"],
@@ -202,17 +202,12 @@ def main():
             outputs_folder = st.session_state.outputs_folder
 
             st.markdown("---")
-            st.header("3. Results")
-
-            # Display results from the outputs folder
-            st.subheader(f"📄 Analysis Results")
 
             # ============================================
             # Section 1: Article Summary
             # ============================================
-            st.markdown("---")
             with st.container():
-                st.markdown("### 📄 Article Summary")
+                st.header("📄 Article Summary")
 
                 try:
                     # Check for combined summary first
@@ -279,50 +274,49 @@ def main():
                     st.error(f"Could not load summary: {e}")
 
             # ============================================
-            # Section 2: Entity Summaries
+            # Section 2: Activities Table
             # ============================================
             st.markdown("---")
             with st.container():
-                st.markdown("### 👥 Entity Summaries")
+                st.header("📊 Activities Table")
 
                 try:
                     with open(outputs_folder / "dict_unique_grouped_entity_summary.json", "r") as f:
                         entities = json.load(f)
 
-                    # Entity selector
-                    entity_list = list(entities.keys())
-                    if entity_list:
-                        selected_entity = st.selectbox("**Select an entity**", entity_list)
-
-                        if selected_entity:
-                            st.info("Entity Summary:")
-                            st.write(entities[selected_entity])
-
-                    # Also show as expandable table
-                    with st.expander("View All Entities"):
-                        df = pd.DataFrame([
-                            {"Entity": name, "Description": desc[:200] + "..." if len(desc) > 200 else desc}
-                            for name, desc in entities.items()
-                        ])
-                        st.dataframe(df, use_container_width=True)
-                except Exception as e:
-                    st.error(f"Could not load entities: {e}")
-
-            # ============================================
-            # Section 3: Risk Assessment
-            # ============================================
-            st.markdown("---")
-            with st.container():
-                st.markdown("### ⚠️ Risk Assessment")
-
-                try:
                     with open(outputs_folder / "risk_assessment.json", "r") as f:
                         risks = json.load(f)
 
-                    flagged = risks.get("flagged_entities", [])
-                    if flagged:
-                        st.warning(f"⚠️ {len(flagged)} flagged entities found")
-                        for entity in flagged:
+                    # Build activities table with flagged entities
+                    flagged_entities = risks.get("flagged_entities", [])
+
+                    if flagged_entities:
+                        st.write(f"**{len(flagged_entities)} flagged entities found**")
+
+                        # Create DataFrame for activities table
+                        activities_data = []
+                        for entity in flagged_entities:
+                            entity_name = entity['entity_name']
+                            entity_type = entity['entity_type']
+                            description = entities.get(entity_name, "No description available")
+                            crimes = entity['crimes_flagged']
+                            risk_level = entity['risk_level']
+
+                            activities_data.append({
+                                "Entity": entity_name,
+                                "Type": entity_type,
+                                "Description": description[:150] + "..." if len(description) > 150 else description,
+                                "Crimes Flagged": ", ".join(crimes),
+                                "Risk Level": risk_level.upper(),
+                                "Confidence": f"{entity['confidence']:.2f}"
+                            })
+
+                        df_activities = pd.DataFrame(activities_data)
+                        st.dataframe(df_activities, use_container_width=True, height=400)
+
+                        # Show detailed view in expanders
+                        st.markdown("**Detailed View:**")
+                        for entity in flagged_entities:
                             with st.expander(f"🚩 {entity['entity_name']} - {entity['risk_level'].upper()} risk"):
                                 st.write(f"**Type:** {entity['entity_type']}")
                                 st.write(f"**Crimes:** {', '.join(entity['crimes_flagged'])}")
@@ -333,15 +327,16 @@ def main():
                                 st.write(f"**Reasoning:** {entity['reasoning']}")
                     else:
                         st.success("✅ No flagged entities")
+
                 except Exception as e:
-                    st.error(f"Could not load risk assessment: {e}")
+                    st.error(f"Could not load activities table: {e}")
 
             # ============================================
-            # Section 4: Entity Relationships (Graph)
+            # Section 3: Entity Relationships (Graph)
             # ============================================
             st.markdown("---")
             with st.container():
-                st.markdown("### 🔗 Entity Relationships")
+                st.header("🔗 Entity Relationships")
 
                 try:
                     # Load graph elements for visualization
@@ -372,17 +367,10 @@ def main():
                         key="knowledge_graph"
                     )
 
-                except Exception as e:
-                    st.error(f"Could not load knowledge graph: {e}")
+                    # Show relationships table below graph
+                    st.markdown("---")
+                    st.subheader("Relationship Details")
 
-            # ============================================
-            # Section 5: Relationship Details
-            # ============================================
-            st.markdown("---")
-            with st.container():
-                st.markdown("### 📊 Relationship Details")
-
-                try:
                     with open(outputs_folder / "entity_relationships_filtered.json", "r") as f:
                         relationships = json.load(f)
 
@@ -400,14 +388,44 @@ def main():
                     st.dataframe(df_rel, use_container_width=True, height=400)
 
                 except Exception as e:
-                    st.error(f"Could not load relationships: {e}")
+                    st.error(f"Could not load knowledge graph: {e}")
 
             # ============================================
-            # Section 6: Save to Database
+            # Section 4: Entity Summaries
             # ============================================
             st.markdown("---")
             with st.container():
-                st.markdown("### 💾 Save Results to Database")
+                st.header("👥 Entity Summaries")
+
+                try:
+                    with open(outputs_folder / "dict_unique_grouped_entity_summary.json", "r") as f:
+                        entities = json.load(f)
+
+                    # Entity selector
+                    entity_list = list(entities.keys())
+                    if entity_list:
+                        selected_entity = st.selectbox("**Select an entity**", entity_list)
+
+                        if selected_entity:
+                            st.info("Entity Summary:")
+                            st.write(entities[selected_entity])
+
+                    # Also show as expandable table
+                    with st.expander("View All Entities"):
+                        df = pd.DataFrame([
+                            {"Entity": name, "Description": desc[:200] + "..." if len(desc) > 200 else desc}
+                            for name, desc in entities.items()
+                        ])
+                        st.dataframe(df, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Could not load entities: {e}")
+
+            # ============================================
+            # Section 5: Save to Database
+            # ============================================
+            st.markdown("---")
+            with st.container():
+                st.header("💾 Save Results to Database")
 
                 st.info("Save your analysis results to the database for tracking and history.")
 
