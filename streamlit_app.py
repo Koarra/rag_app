@@ -181,48 +181,114 @@ def main():
                 # Display results from the outputs folder
                 st.subheader(f"📄 Analysis Results")
 
-                tabs = st.tabs(["Summary", "Entities", "Risk Assessment", "Knowledge Graph"])
+                # ============================================
+                # Section 1: Article Summary
+                # ============================================
+                st.markdown("---")
+                with st.container():
+                    st.markdown("### 📄 Article Summary")
 
-                # Tab 1: Summary
-                with tabs[0]:
                     try:
                         # Check for combined summary first
                         combined_summary_path = outputs_folder / "combined_summary.json"
                         if combined_summary_path.exists():
                             with open(combined_summary_path, "r") as f:
                                 combined = json.load(f)
-                            st.subheader("Combined Summary")
-                            st.write(combined["combined_summary"])
-                            st.caption(f"Based on {combined['file_count']} document(s): {', '.join(combined['files'])}")
 
-                        # Show individual summaries
+                            if 'edit_mode_summary' not in st.session_state:
+                                st.session_state.edit_mode_summary = False
+                            if 'summary_text' not in st.session_state:
+                                st.session_state.summary_text = combined["combined_summary"]
+
+                            def toggle_edit_summary():
+                                st.session_state.edit_mode_summary = not st.session_state.edit_mode_summary
+
+                            def apply_changes_summary():
+                                st.session_state.summary_text = st.session_state.temp_summary_text
+                                st.session_state.edit_mode_summary = False
+                                st.toast("Feedback successfully submitted!")
+
+                            if not st.session_state.edit_mode_summary:
+                                st.write(st.session_state.summary_text)
+                                st.caption(f"Based on {combined['file_count']} document(s): {', '.join(combined['files'])}")
+                                st.button("Edit Summary", on_click=toggle_edit_summary, key="edit_btn_summary")
+                            else:
+                                st.text_area("Please edit your text:", value=st.session_state.summary_text, key="temp_summary_text", height=200)
+                                st.button("Apply and share feedback", on_click=apply_changes_summary, key="apply_btn_summary")
+
+                        # Show individual summaries in expanders
                         summary_files = sorted(outputs_folder.glob("summary_*.json"))
-                        if summary_files:
-                            st.subheader("Individual Summaries")
+                        if summary_files and len(summary_files) > 1:
+                            st.markdown("**Individual Summaries:**")
                             for summary_file in summary_files:
                                 with open(summary_file, "r") as f:
                                     summary = json.load(f)
                                 with st.expander(f"📄 {Path(summary['file_name']).name}"):
                                     st.write(summary["summary"])
+                        elif summary_files and len(summary_files) == 1:
+                            # Single file case
+                            with open(summary_files[0], "r") as f:
+                                summary = json.load(f)
+
+                            if 'edit_mode_summary' not in st.session_state:
+                                st.session_state.edit_mode_summary = False
+                            if 'summary_text' not in st.session_state:
+                                st.session_state.summary_text = summary["summary"]
+
+                            def toggle_edit_summary():
+                                st.session_state.edit_mode_summary = not st.session_state.edit_mode_summary
+
+                            def apply_changes_summary():
+                                st.session_state.summary_text = st.session_state.temp_summary_text
+                                st.session_state.edit_mode_summary = False
+                                st.toast("Feedback successfully submitted!")
+
+                            if not st.session_state.edit_mode_summary:
+                                st.write(st.session_state.summary_text)
+                                st.button("Edit Summary", on_click=toggle_edit_summary, key="edit_btn_summary")
+                            else:
+                                st.text_area("Please edit your text:", value=st.session_state.summary_text, key="temp_summary_text", height=200)
+                                st.button("Apply and share feedback", on_click=apply_changes_summary, key="apply_btn_summary")
                     except Exception as e:
                         st.error(f"Could not load summary: {e}")
 
-                # Tab 2: Entities
-                with tabs[1]:
+                # ============================================
+                # Section 2: Entity Summaries
+                # ============================================
+                st.markdown("---")
+                with st.container():
+                    st.markdown("### 👥 Entity Summaries")
+
                     try:
                         with open(outputs_folder / "dict_unique_grouped_entity_summary.json", "r") as f:
                             entities = json.load(f)
 
-                        df = pd.DataFrame([
-                            {"Entity": name, "Description": desc[:200] + "..." if len(desc) > 200 else desc}
-                            for name, desc in entities.items()
-                        ])
-                        st.dataframe(df, use_container_width=True)
+                        # Entity selector
+                        entity_list = list(entities.keys())
+                        if entity_list:
+                            selected_entity = st.selectbox("**Select an entity**", entity_list)
+
+                            if selected_entity:
+                                st.info("Entity Summary:")
+                                st.write(entities[selected_entity])
+
+                        # Also show as expandable table
+                        with st.expander("View All Entities"):
+                            df = pd.DataFrame([
+                                {"Entity": name, "Description": desc[:200] + "..." if len(desc) > 200 else desc}
+                                for name, desc in entities.items()
+                            ])
+                            st.dataframe(df, use_container_width=True)
                     except Exception as e:
                         st.error(f"Could not load entities: {e}")
 
-                # Tab 3: Risk Assessment
-                with tabs[2]:
+                # ============================================
+                # Section 3: Risk Assessment
+                # ============================================
+                st.markdown("---")
+                with st.container():
+                    st.markdown("### ⚠️ Risk Assessment")
+
                     try:
                         with open(outputs_folder / "risk_assessment.json", "r") as f:
                             risks = json.load(f)
@@ -232,6 +298,7 @@ def main():
                             st.warning(f"⚠️ {len(flagged)} flagged entities found")
                             for entity in flagged:
                                 with st.expander(f"🚩 {entity['entity_name']} - {entity['risk_level'].upper()} risk"):
+                                    st.write(f"**Type:** {entity['entity_type']}")
                                     st.write(f"**Crimes:** {', '.join(entity['crimes_flagged'])}")
                                     st.write(f"**Confidence:** {entity['confidence']}")
                                     st.write(f"**Evidence:**")
@@ -243,15 +310,17 @@ def main():
                     except Exception as e:
                         st.error(f"Could not load risk assessment: {e}")
 
-                # Tab 4: Knowledge Graph
-                with tabs[3]:
+                # ============================================
+                # Section 4: Entity Relationships (Graph)
+                # ============================================
+                st.markdown("---")
+                with st.container():
+                    st.markdown("### 🔗 Entity Relationships")
+
                     try:
                         # Load graph elements for visualization
                         with open(outputs_folder / "graph_elements.json", "r") as f:
                             elements = json.load(f)
-
-                        # Display interactive graph
-                        st.subheader("Entity Relationship Graph")
 
                         # Style nodes & edges for graph
                         edge_styles = [
@@ -277,10 +346,17 @@ def main():
                             key="knowledge_graph"
                         )
 
-                        # Also show relationships table
-                        st.markdown("---")
-                        st.subheader("Relationship Details")
+                    except Exception as e:
+                        st.error(f"Could not load knowledge graph: {e}")
 
+                # ============================================
+                # Section 5: Relationship Details
+                # ============================================
+                st.markdown("---")
+                with st.container():
+                    st.markdown("### 📊 Relationship Details")
+
+                    try:
                         with open(outputs_folder / "entity_relationships_filtered.json", "r") as f:
                             relationships = json.load(f)
 
@@ -295,10 +371,10 @@ def main():
                             }
                             for r in relationships
                         ])
-                        st.dataframe(df_rel, use_container_width=True)
+                        st.dataframe(df_rel, use_container_width=True, height=400)
 
                     except Exception as e:
-                        st.error(f"Could not load knowledge graph: {e}")
+                        st.error(f"Could not load relationships: {e}")
 
             else:
                 st.error(f"❌ Processing failed after {processing_time:.2f} seconds")
