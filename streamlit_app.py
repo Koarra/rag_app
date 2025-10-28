@@ -19,6 +19,7 @@ import re
 from datetime import datetime
 import pandas as pd
 import os
+from streamlit_link_analysis import st_link_analysis
 
 # Configuration - Support both Domino and local environments
 if "DOMINO_DATASETS_DIR" in os.environ and "DOMINO_PROJECT_NAME" in os.environ:
@@ -124,8 +125,6 @@ def main():
 
         # Process documents button
         if st.button("🚀 Process Documents", type="primary"):
-            st.header("2. Processing Pipeline")
-
             # Track processing time
             import time
             start_time = time.time()
@@ -247,6 +246,18 @@ def main():
                 # Tab 4: Knowledge Graph
                 with tabs[3]:
                     try:
+                        # Load graph elements for visualization
+                        with open(outputs_folder / "graph_elements.json", "r") as f:
+                            graph_data = json.load(f)
+
+                        # Display interactive graph
+                        st.subheader("Entity Relationship Graph")
+                        st_link_analysis(graph_data, height=600, width=800)
+
+                        # Also show relationships table
+                        st.markdown("---")
+                        st.subheader("Relationship Details")
+
                         with open(outputs_folder / "entity_relationships_filtered.json", "r") as f:
                             relationships = json.load(f)
 
@@ -263,9 +274,8 @@ def main():
                         ])
                         st.dataframe(df_rel, use_container_width=True)
 
-                        st.info("💡 Tip: graph_elements.json can be used with visualization tools like Cytoscape or D3.js")
                     except Exception as e:
-                        st.error(f"Could not load relationships: {e}")
+                        st.error(f"Could not load knowledge graph: {e}")
 
             else:
                 st.error(f"❌ Processing failed after {processing_time:.2f} seconds")
