@@ -7,6 +7,8 @@ Output: Creates entity_descriptions.json with detailed info for each entity
 """
 
 import json
+import sys
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Dict
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -51,9 +53,11 @@ Document:
 
 
 def main():
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step3_describe_entities.py <output_folder>")
+        sys.exit(1)
 
-    output_folder = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    output_folder = Path(sys.argv[1])
     output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 3: DESCRIBE ENTITIES ===")

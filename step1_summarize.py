@@ -159,6 +159,64 @@ Document:
     return result.summary
 
 
+def create_combined_summary(output_folder, summary_files, llm):
+    """Create a combined summary from multiple document summaries"""
+
+    # Read all summaries
+    summaries_data = []
+    for summary_file in summary_files:
+        with open(summary_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            summaries_data.append({
+                "file_name": data.get("file_name", "Unknown"),
+                "summary": data.get("summary", "")
+            })
+
+    # Combine summaries into a single text
+    combined_text = ""
+    for i, data in enumerate(summaries_data, 1):
+        combined_text += f"\n--- Document {i}: {Path(data['file_name']).name} ---\n"
+        combined_text += data['summary']
+        combined_text += "\n"
+
+    # Limit combined text to 15000 characters
+    combined_text = combined_text[:15000]
+
+    program = LLMTextCompletionProgram.from_defaults(
+        output_cls=DocumentSummary,
+        llm=llm,
+        prompt_template_str="""You are an expert document analyst. Analyze multiple document summaries and create a combined summary.
+
+Identify and highlight:
+- Common themes across all documents
+- Shared entities (people, organizations)
+- Related events or transactions
+- Overlapping time periods
+- Key differences between documents
+
+Document Summaries:
+{all_summaries}
+""",
+        verbose=False
+    )
+
+    result = program(all_summaries=combined_text)
+    combined_summary = result.summary
+
+    # Save combined summary
+    combined_result = {
+        "file_count": len(summaries_data),
+        "files": [Path(data["file_name"]).name for data in summaries_data],
+        "combined_summary": combined_summary
+    }
+
+    with open(output_folder / "combined_summary.json", "w", encoding="utf-8") as f:
+        json.dump(combined_result, f, indent=2)
+
+    print(f"Saved: {output_folder}/combined_summary.json")
+    print(f"Combined {len(summaries_data)} document summaries")
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python step1_summarize.py <input_file.pdf> [output_folder]")
@@ -200,17 +258,26 @@ def main():
     print("Generating summary...")
     summary = summarize_document(text, llm)
 
-    # Save summary
+    # Save summary with filename
+    input_filename = Path(input_file).stem  # Get filename without extension
     result = {
         "file_name": input_file,
         "summary": summary
     }
 
-    with open(output_folder / "summary.json", "w", encoding="utf-8") as f:
+    summary_filename = f"summary_{input_filename}.json"
+    with open(output_folder / summary_filename, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
 
-    print(f"Saved: {output_folder}/summary.json")
+    print(f"Saved: {output_folder}/{summary_filename}")
     print(f"\nSummary:\n{summary}")
+
+    # Check if there are multiple summary files and create a combined summary
+    summary_files = list(output_folder.glob("summary_*.json"))
+    if len(summary_files) > 1:
+        print(f"\nFound {len(summary_files)} summary files. Creating combined summary...")
+        create_combined_summary(output_folder, summary_files, llm)
+
     print("\n=== STEP 1 COMPLETE ===\n")
 
 

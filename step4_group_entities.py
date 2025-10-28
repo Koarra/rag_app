@@ -7,6 +7,8 @@ Output: Creates dict_unique_grouped_entity_summary.json with grouped entities
 """
 
 import json
+import sys
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -61,9 +63,11 @@ Only group entities if you're confident they're the same person. When in doubt, 
 
 
 def main():
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step4_group_entities.py <output_folder>")
+        sys.exit(1)
 
-    output_folder = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    output_folder = Path(sys.argv[1])
     output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 4: GROUP ENTITIES ===")

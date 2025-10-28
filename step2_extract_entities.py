@@ -7,6 +7,8 @@ Output: Creates entities.json with list of persons and companies
 """
 
 import json
+import sys
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -49,14 +51,20 @@ Document:
 
 
 def main():
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step2_extract_entities.py <output_folder>")
+        sys.exit(1)
+
+    output_folder = Path(sys.argv[1])
+    output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 2: EXTRACT ENTITIES ===")
+    print(f"Output folder: {output_folder}")
 
     # Read extracted text from step 1
     print("Reading extracted_text.txt...")
     try:
-        with open("extracted_text.txt", "r", encoding="utf-8") as f:
+        with open(output_folder / "extracted_text.txt", "r", encoding="utf-8") as f:
             text = f.read()
     except FileNotFoundError:
         print("Error: extracted_text.txt not found. Run step1_summarize.py first.")

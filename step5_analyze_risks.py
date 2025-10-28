@@ -7,6 +7,8 @@ Output: Creates risk_assessment.json with flagged entities
 """
 
 import json
+import sys
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -89,9 +91,11 @@ Determine if there is evidence of any financial crimes. Only use crimes from thi
 
 
 def main():
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step5_analyze_risks.py <output_folder>")
+        sys.exit(1)
 
-    output_folder = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    output_folder = Path(sys.argv[1])
     output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 5: ANALYZE RISKS ===")
@@ -163,7 +167,7 @@ def main():
         json.dump(risk_assessment, f, indent=2)
 
     print(f"\nSaved: {output_folder}/risk_assessment.json")
-    print(f"Flagged Entities: {len(flagged_entities)}/{len(entities)}")
+    print(f"Flagged Entities: {len(flagged_entities)}/{len(entities_dict)}")
 
     for entity in flagged_entities:
         print(f"\n  {entity['entity_name']} ({entity['entity_type']})")

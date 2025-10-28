@@ -44,11 +44,10 @@ def transform_string(input_string):
     return cleaned.lower()
 
 
-def run_step(script_name, args, step_name):
-    """Run a step script and show progress"""
+def run_step(script_name, args):
+    """Run a step script silently"""
     try:
         cmd = ["python", script_name] + args
-        st.info(f"Running {step_name}...")
 
         result = subprocess.run(
             cmd,
@@ -57,15 +56,9 @@ def run_step(script_name, args, step_name):
             check=True
         )
 
-        st.success(f"✓ {step_name} completed")
-        with st.expander(f"View {step_name} output"):
-            st.code(result.stdout)
-
-        return True
+        return True, result.stdout, result.stderr
     except subprocess.CalledProcessError as e:
-        st.error(f"❌ Error in {step_name}")
-        st.code(e.stderr)
-        return False
+        return False, e.stdout, e.stderr
 
 
 def main():
@@ -133,63 +126,54 @@ def main():
         if st.button("🚀 Process Documents", type="primary"):
             st.header("2. Processing Pipeline")
 
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+            # Track processing time
+            import time
+            start_time = time.time()
+
+            processing_placeholder = st.empty()
+            processing_placeholder.info("⏳ Processing documents...")
 
             all_success = True
+            errors = []
 
             # Create outputs subfolder
             outputs_folder = output_folder / "outputs"
             outputs_folder.mkdir(parents=True, exist_ok=True)
 
-            for i, file_path in enumerate(file_paths):
-                st.subheader(f"Processing: {file_path.name}")
-
-                # Step 1: Summarize
-                status_text.text(f"Step 1/6: Extracting text and summarizing...")
-                if not run_step("step1_summarize.py", [str(file_path), str(outputs_folder)], "Step 1: Summarize"):
+            # Process all files through step 1
+            for file_path in file_paths:
+                success, stdout, stderr = run_step("step1_summarize.py", [str(file_path), str(outputs_folder)])
+                if not success:
                     all_success = False
+                    errors.append(f"Step 1 failed for {file_path.name}: {stderr}")
                     break
-                progress_bar.progress((i * 6 + 1) / (len(file_paths) * 6))
 
-                # Step 2: Extract entities
-                status_text.text(f"Step 2/6: Extracting entities...")
-                if not run_step("step2_extract_entities.py", [str(outputs_folder)], "Step 2: Extract Entities"):
-                    all_success = False
-                    break
-                progress_bar.progress((i * 6 + 2) / (len(file_paths) * 6))
+            # Run remaining steps once (they process all entities together)
+            if all_success:
+                steps = [
+                    ("step2_extract_entities.py", [str(outputs_folder)]),
+                    ("step3_describe_entities.py", [str(outputs_folder)]),
+                    ("step4_group_entities.py", [str(outputs_folder)]),
+                    ("step5_analyze_risks.py", [str(outputs_folder)]),
+                    ("step6_extract_relationships.py", [str(outputs_folder)])
+                ]
 
-                # Step 3: Describe entities
-                status_text.text(f"Step 3/6: Describing entities...")
-                if not run_step("step3_describe_entities.py", [str(outputs_folder)], "Step 3: Describe Entities"):
-                    all_success = False
-                    break
-                progress_bar.progress((i * 6 + 3) / (len(file_paths) * 6))
+                for script, args in steps:
+                    success, stdout, stderr = run_step(script, args)
+                    if not success:
+                        all_success = False
+                        errors.append(f"{script} failed: {stderr}")
+                        break
 
-                # Step 4: Group entities
-                status_text.text(f"Step 4/6: Grouping similar entities...")
-                if not run_step("step4_group_entities.py", [str(outputs_folder)], "Step 4: Group Entities"):
-                    all_success = False
-                    break
-                progress_bar.progress((i * 6 + 4) / (len(file_paths) * 6))
+            # Calculate processing time
+            end_time = time.time()
+            processing_time = end_time - start_time
 
-                # Step 5: Analyze risks
-                status_text.text(f"Step 5/6: Analyzing risks...")
-                if not run_step("step5_analyze_risks.py", [str(outputs_folder)], "Step 5: Analyze Risks"):
-                    all_success = False
-                    break
-                progress_bar.progress((i * 6 + 5) / (len(file_paths) * 6))
-
-                # Step 6: Extract relationships
-                status_text.text(f"Step 6/6: Extracting relationships...")
-                if not run_step("step6_extract_relationships.py", [str(outputs_folder)], "Step 6: Extract Relationships"):
-                    all_success = False
-                    break
-                progress_bar.progress((i * 6 + 6) / (len(file_paths) * 6))
+            # Clear processing message
+            processing_placeholder.empty()
 
             if all_success:
-                status_text.text("✅ All steps completed successfully!")
-                progress_bar.progress(1.0)
+                st.success(f"✅ Processing completed successfully in {processing_time:.2f} seconds")
                 st.balloons()
 
                 st.markdown("---")
@@ -203,9 +187,24 @@ def main():
                 # Tab 1: Summary
                 with tabs[0]:
                     try:
-                        with open(outputs_folder / "summary.json", "r") as f:
-                            summary = json.load(f)
-                        st.write(summary["summary"])
+                        # Check for combined summary first
+                        combined_summary_path = outputs_folder / "combined_summary.json"
+                        if combined_summary_path.exists():
+                            with open(combined_summary_path, "r") as f:
+                                combined = json.load(f)
+                            st.subheader("Combined Summary")
+                            st.write(combined["combined_summary"])
+                            st.caption(f"Based on {combined['file_count']} document(s): {', '.join(combined['files'])}")
+
+                        # Show individual summaries
+                        summary_files = sorted(outputs_folder.glob("summary_*.json"))
+                        if summary_files:
+                            st.subheader("Individual Summaries")
+                            for summary_file in summary_files:
+                                with open(summary_file, "r") as f:
+                                    summary = json.load(f)
+                                with st.expander(f"📄 {Path(summary['file_name']).name}"):
+                                    st.write(summary["summary"])
                     except Exception as e:
                         st.error(f"Could not load summary: {e}")
 
@@ -269,7 +268,11 @@ def main():
                         st.error(f"Could not load relationships: {e}")
 
             else:
-                st.error("❌ Processing failed. Please check the errors above.")
+                st.error(f"❌ Processing failed after {processing_time:.2f} seconds")
+                if errors:
+                    st.subheader("Error Details")
+                    for error in errors:
+                        st.code(error)
 
 
 if __name__ == "__main__":

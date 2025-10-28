@@ -7,6 +7,8 @@ Output: Creates graph_elements.json with nodes and edges for visualization
 """
 
 import json
+import sys
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
@@ -94,9 +96,11 @@ Classify the relationship and provide reasoning.
 
 
 def main():
-    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python step6_extract_relationships.py <output_folder>")
+        sys.exit(1)
 
-    output_folder = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    output_folder = Path(sys.argv[1])
     output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 6: EXTRACT RELATIONSHIPS ===")
