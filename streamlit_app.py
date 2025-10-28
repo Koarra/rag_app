@@ -368,10 +368,15 @@ def main():
                     st.write(f"**Total entities: {len(activities_data)}**")
                     st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
 
+                    # Wrap table in a scrollable container
+                    st.markdown('<div style="overflow-x: auto;">', unsafe_allow_html=True)
+
                     # Use st.data_editor for better display with HTML rendering
                     st.markdown(styled_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-                    # Add CSS for better table styling
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                    # Add CSS for better table styling with vertical headers
                     st.markdown("""
                     <style>
                     table {
@@ -388,12 +393,45 @@ def main():
                         top: 0;
                         z-index: 10;
                     }
+                    /* Vertical headers for crime columns */
+                    th:nth-child(n+4) {
+                        writing-mode: vertical-rl;
+                        transform: rotate(180deg);
+                        white-space: nowrap;
+                        height: 150px;
+                        min-width: 30px;
+                        max-width: 30px;
+                        padding: 5px;
+                        text-align: center;
+                        vertical-align: bottom;
+                    }
+                    /* Keep first 3 columns (Entity, Summary, Flagged) horizontal */
+                    th:nth-child(1), th:nth-child(2), th:nth-child(3) {
+                        writing-mode: horizontal-tb;
+                        transform: none;
+                        height: auto;
+                        min-width: auto;
+                    }
                     td {
                         padding: 8px;
                         border: 1px solid #ddd;
-                        max-width: 300px;
+                        text-align: center;
+                    }
+                    /* Left align text for Entity and Summary columns */
+                    td:nth-child(1), td:nth-child(2) {
+                        text-align: left;
+                    }
+                    /* Summary column specific styling */
+                    td:nth-child(2) {
+                        max-width: 400px;
                         overflow: hidden;
                         text-overflow: ellipsis;
+                        white-space: pre-wrap;
+                    }
+                    /* Narrow columns for crime checkmarks */
+                    td:nth-child(n+4) {
+                        min-width: 30px;
+                        max-width: 30px;
                     }
                     tr:hover {
                         background-color: #f5f5f5;
