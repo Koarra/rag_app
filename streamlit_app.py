@@ -287,46 +287,119 @@ def main():
                     with open(outputs_folder / "risk_assessment.json", "r") as f:
                         risks = json.load(f)
 
-                    # Build activities table with flagged entities
-                    flagged_entities = risks.get("flagged_entities", [])
+                    # Create a mapping of entities to their crime flags and reasoning
+                    entity_crimes = {}
+                    for flagged_entity in risks.get("flagged_entities", []):
+                        entity_name = flagged_entity['entity_name']
+                        entity_crimes[entity_name] = {
+                            'crimes': set(flagged_entity['crimes_flagged']),
+                            'reasoning': flagged_entity['reasoning']
+                        }
 
-                    if flagged_entities:
-                        st.write(f"**{len(flagged_entities)} flagged entities found**")
+                    # List of all crime types (from database_utils.py)
+                    CRIME_CATEGORIES = [
+                        "money_laundering",
+                        "sanctions_evasion",
+                        "terrorist_financing",
+                        "bribery",
+                        "corruption",
+                        "embezzlement",
+                        "fraud",
+                        "tax_evasion",
+                        "insider_trading",
+                        "market_manipulation",
+                        "ponzi_scheme",
+                        "pyramid_scheme",
+                        "identity_theft",
+                        "cybercrime",
+                        "human_trafficking"
+                    ]
 
-                        # Create DataFrame for activities table
-                        activities_data = []
-                        for entity in flagged_entities:
-                            entity_name = entity['entity_name']
-                            entity_type = entity['entity_type']
-                            description = entities.get(entity_name, "No description available")
-                            crimes = entity['crimes_flagged']
-                            risk_level = entity['risk_level']
+                    # Build activities table data
+                    activities_data = []
+                    for entity_name, description in entities.items():
+                        # Check if entity is flagged
+                        is_flagged = entity_name in entity_crimes
 
-                            activities_data.append({
-                                "Entity": entity_name,
-                                "Type": entity_type,
-                                "Description": description[:150] + "..." if len(description) > 150 else description,
-                                "Crimes Flagged": ", ".join(crimes),
-                                "Risk Level": risk_level.upper(),
-                                "Confidence": f"{entity['confidence']:.2f}"
-                            })
+                        # Build summary (description + reasoning if flagged)
+                        summary = description
+                        if is_flagged:
+                            reasoning = entity_crimes[entity_name]['reasoning']
+                            summary = f"{description}\n\nReason: {reasoning}"
 
-                        df_activities = pd.DataFrame(activities_data)
-                        st.dataframe(df_activities, use_container_width=True, height=400)
+                        # Create row data
+                        row = {
+                            "Entity": entity_name,
+                            "Summary": summary,
+                            "Flagged": is_flagged
+                        }
 
-                        # Show detailed view in expanders
-                        st.markdown("**Detailed View:**")
-                        for entity in flagged_entities:
-                            with st.expander(f"🚩 {entity['entity_name']} - {entity['risk_level'].upper()} risk"):
-                                st.write(f"**Type:** {entity['entity_type']}")
-                                st.write(f"**Crimes:** {', '.join(entity['crimes_flagged'])}")
-                                st.write(f"**Confidence:** {entity['confidence']}")
-                                st.write(f"**Evidence:**")
-                                for evidence in entity['evidence']:
-                                    st.write(f"- {evidence}")
-                                st.write(f"**Reasoning:** {entity['reasoning']}")
-                    else:
-                        st.success("✅ No flagged entities")
+                        # Add crime columns
+                        if is_flagged:
+                            entity_crime_set = entity_crimes[entity_name]['crimes']
+                            for crime in CRIME_CATEGORIES:
+                                row[crime] = crime in entity_crime_set
+                        else:
+                            for crime in CRIME_CATEGORIES:
+                                row[crime] = False
+
+                        activities_data.append(row)
+
+                    # Create DataFrame
+                    df_activities = pd.DataFrame(activities_data)
+
+                    # Function to apply checkmarks and crosses
+                    def apply_checkmarks(val):
+                        if isinstance(val, bool):
+                            if val:
+                                return '<span style="color: green; font-size: 18px;">✓</span>'
+                            else:
+                                return '<span style="color: red; font-size: 18px;">✗</span>'
+                        return val
+
+                    # Apply styling to boolean columns
+                    styled_df = df_activities.copy()
+                    boolean_columns = ["Flagged"] + CRIME_CATEGORIES
+
+                    for col in boolean_columns:
+                        styled_df[col] = styled_df[col].apply(apply_checkmarks)
+
+                    # Display the table
+                    st.write(f"**Total entities: {len(activities_data)}**")
+                    st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
+
+                    # Use st.data_editor for better display with HTML rendering
+                    st.markdown(styled_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+                    # Add CSS for better table styling
+                    st.markdown("""
+                    <style>
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                    }
+                    th {
+                        background-color: #f0f2f6;
+                        padding: 10px;
+                        text-align: left;
+                        font-weight: bold;
+                        border: 1px solid #ddd;
+                        position: sticky;
+                        top: 0;
+                        z-index: 10;
+                    }
+                    td {
+                        padding: 8px;
+                        border: 1px solid #ddd;
+                        max-width: 300px;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    tr:hover {
+                        background-color: #f5f5f5;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
 
                 except Exception as e:
                     st.error(f"Could not load activities table: {e}")
