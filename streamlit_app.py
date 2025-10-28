@@ -113,8 +113,6 @@ def main():
         output_folder.mkdir(parents=True, exist_ok=True)
 
         # Save uploaded files
-        st.write(f"**Output folder:** `{output_folder}`")
-
         file_paths = []
         for uploaded_file in uploaded_files:
             name_article, file_ext = Path(uploaded_file.name).stem, Path(uploaded_file.name).suffix
@@ -124,7 +122,6 @@ def main():
             with open(file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             file_paths.append(file_path)
-            st.write(f"- Saved: `{file_path.name}`")
 
         st.markdown("---")
 
@@ -140,11 +137,9 @@ def main():
             import time
             start_time = time.time()
 
+            # Create a placeholder for dynamic updates
             processing_placeholder = st.empty()
-            processing_placeholder.info("⏳ Processing documents...")
-
-            all_success = True
-            errors = []
+            timer_placeholder = st.empty()
 
             # Create outputs subfolder
             outputs_folder = output_folder / "outputs"
@@ -153,8 +148,31 @@ def main():
             # Store in session state
             st.session_state.outputs_folder = outputs_folder
 
+            all_success = True
+            errors = []
+
+            # Cool processing animation with real-time timer
+            def update_processing_status(message, step=None, total_steps=None):
+                elapsed = time.time() - start_time
+                minutes = int(elapsed // 60)
+                seconds = int(elapsed % 60)
+
+                if step and total_steps:
+                    progress = step / total_steps
+                    progress_bar = "█" * int(progress * 20) + "░" * (20 - int(progress * 20))
+                    status_msg = f"### 🔄 {message}\n\n`[{progress_bar}]` Step {step}/{total_steps}\n\n⏱️ **Elapsed time: {minutes:02d}:{seconds:02d}**"
+                else:
+                    status_msg = f"### 🔄 {message}\n\n⏱️ **Elapsed time: {minutes:02d}:{seconds:02d}**"
+
+                processing_placeholder.markdown(status_msg)
+
             # Process all files through step 1
+            total_steps = len(file_paths) + 5  # Files + 5 remaining steps
+            current_step = 0
+
             for file_path in file_paths:
+                current_step += 1
+                update_processing_status(f"Extracting text from {file_path.name}...", current_step, total_steps)
                 success, stdout, stderr = run_step("step1_summarize.py", [str(file_path), str(outputs_folder)])
                 if not success:
                     all_success = False
@@ -164,26 +182,29 @@ def main():
             # Run remaining steps once (they process all entities together)
             if all_success:
                 steps = [
-                    ("step2_extract_entities.py", [str(outputs_folder)]),
-                    ("step3_describe_entities.py", [str(outputs_folder)]),
-                    ("step4_group_entities.py", [str(outputs_folder)]),
-                    ("step5_analyze_risks.py", [str(outputs_folder)]),
-                    ("step6_extract_relationships.py", [str(outputs_folder)])
+                    ("step2_extract_entities.py", "Extracting entities..."),
+                    ("step3_describe_entities.py", "Describing entities..."),
+                    ("step4_group_entities.py", "Grouping similar entities..."),
+                    ("step5_analyze_risks.py", "Analyzing risks..."),
+                    ("step6_extract_relationships.py", "Extracting relationships...")
                 ]
 
-                for script, args in steps:
-                    success, stdout, stderr = run_step(script, args)
+                for script, message in steps:
+                    current_step += 1
+                    update_processing_status(message, current_step, total_steps)
+                    success, stdout, stderr = run_step(script, [str(outputs_folder)])
                     if not success:
                         all_success = False
                         errors.append(f"{script} failed: {stderr}")
                         break
 
-            # Calculate processing time
+            # Calculate final processing time
             end_time = time.time()
             processing_time = end_time - start_time
 
             # Clear processing message
             processing_placeholder.empty()
+            timer_placeholder.empty()
 
             if all_success:
                 st.success(f"✅ Processing completed successfully in {processing_time:.2f} seconds")
@@ -425,10 +446,11 @@ def main():
                     }
                     th:nth-child(n+4) > div {
                         transform: rotate(-45deg);
-                        transform-origin: bottom left;
+                        transform-origin: center center;
                         position: absolute;
-                        bottom: 5px;
-                        left: 45px;
+                        bottom: 50%;
+                        left: 50%;
+                        transform: translate(-50%, 50%) rotate(-45deg);
                         white-space: nowrap;
                         width: 200px;
                         text-align: left;
