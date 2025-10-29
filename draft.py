@@ -1,58 +1,56 @@
-import json
-from pydantic import BaseModel, Field
-from typing import List, Dict
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-from llama_index.core.program import LLMTextCompletionProgram
-from llama_index.llms.azure_openai import AzureOpenAI
+{
+    // =====================
+    // General Editor Settings
+    // =====================
+    "editor.fontFamily": "Fira Code, Menlo, Monaco, 'Courier New', monospace",
+    "editor.fontLigatures": true,
+    "editor.cursorBlinking": "smooth",
+    "editor.lineNumbers": "relative",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.renderWhitespace": "boundary",
+    "editor.minimap.enabled": false,
+    "workbench.colorTheme": "Default Dark+",
+    "workbench.startupEditor": "newUntitledFile",
+    "files.autoSave": "onFocusChange",
 
-# Your Pydantic models
-class EntityCrimes(BaseModel):
-    crimes: List[str] = Field(description="List of crimes committed by the entity")
-    evidence: str = Field(description="Supporting evidence or reasoning")
+    // =====================
+    // Vim Extension Settings
+    // =====================
+    "vim.enableNeovim": false,             // Set to true if you want to use Neovim as the engine
+    "vim.useSystemClipboard": true,
+    "vim.smartRelativeLine": true,
+    "vim.hlsearch": true,
+    "vim.incsearch": true,
+    "vim.autoindent": true,
+    "vim.sneak": true,
+    "vim.leader": "<space>",
 
-class CrimeAnalysis(BaseModel):
-    entities: Dict[str, EntityCrimes] = Field(description="Mapping of entity names to their crimes and evidence")
+    // Enable colored status bar depending on Vim mode
+    "vim.statusBarColorControl": true,
+    "vim.statusBarColors": {
+        "normal": "#005f5f",
+        "insert": "#005f00",
+        "visual": "#5f0000",
+        "replace": "#5f005f",
+        "commandline_in_progress": "#875f00"
+    },
 
-# Your LLM setup
-llm = AzureOpenAI(
-    engine="gpt-4o-mini",
-    use_azure_ad=True,
-    azure_ad_token_provider=get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-    )
-)
+    // Optional: change cursor style depending on mode
+    "vim.cursorStylePerMode": true,
 
-# Example input
-entities = {
-    "John Doe": "John Doe was arrested for insider trading in 2021.",
-    "ACME Corp": "ACME Corp was fined for environmental violations but not criminally charged."
+    // Optional: mode-specific cursor shapes
+    "vim.cursorStyle": "block",
+    "vim.cursorStylePerMode.normal": "block",
+    "vim.cursorStylePerMode.insert": "line",
+    "vim.cursorStylePerMode.visual": "block-outline",
+
+    // =====================
+    // UI / Quality of Life
+    // =====================
+    "workbench.statusBar.visible": true,
+    "workbench.activityBar.visible": true,
+    "window.zoomLevel": 0,
+    "terminal.integrated.fontSize": 14,
+    "terminal.integrated.cursorBlinking": true
 }
-
-# Create the program
-program = LLMTextCompletionProgram.from_defaults(
-    output_cls=CrimeAnalysis,
-    llm=llm,
-    prompt_template_str="""You are a legal analyst. Analyze each entity and identify any crimes they appear to have committed.
-Return a JSON strictly matching this schema:
-
-Entities:
-{entities_str}
-""",
-    verbose=True
-)
-
-# Call the program
-result = program(entities_str=json.dumps(entities, indent=2))
-
-# Print the result
-print(result.model_dump_json(indent=2))
-
-
-
-
-
-entities_list = data['entities']
-entities_formatted = "\n".join([
-    f"- {ent['entity']}: {ent['description']} (Related: {', '.join(ent['related_entities'])})"
-    for ent in entities_list
-])
