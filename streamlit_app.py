@@ -43,6 +43,155 @@ SQLITE_DB_PATH = ASSET_FOLDER / "articledetective_feedback.db"
 DUCKDB_DB_PATH = ASSET_FOLDER / "articledetective_feedback.duckdb"
 
 
+def generate_custom_table(df, crime_columns):
+    """Generate custom HTML table with styled headers"""
+
+    # Prepare table rows
+    rows_html = ""
+    for _, row in df.iterrows():
+        cells = []
+        for col in df.columns:
+            if col in crime_columns or col == "Flagged":
+                cells.append(f'<td class="boolean-column">{row[col]}</td>')
+            else:
+                cells.append(f'<td>{row[col]}</td>')
+        rows_html += f"<tr>{''.join(cells)}</tr>"
+
+    # Generate crime column headers (rotated)
+    crime_headers = " ".join(
+        f"<th class='rotate-header'>{col.replace('_', ' ').title()}</th>"
+        for col in crime_columns
+    )
+
+    html_string = f"""
+    <style>
+        .table-container {{
+            width: 100%;
+            height: 900px;
+            overflow-x: auto;
+            overflow-y: auto;
+        }}
+        table.custom-table {{
+            border-collapse: collapse;
+            width: 99%;
+            table-layout: auto;
+        }}
+        thead {{
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-color: #f0f2f6;
+            backdrop-filter: blur(8px);
+        }}
+        th, td {{
+            border: 1px solid #dddddd;
+            padding: 8px;
+            overflow: hidden;
+        }}
+        th {{
+            padding-bottom: 10px;
+            font-weight: bold;
+        }}
+        .boolean-column {{
+            min-width: 35px;
+            max-width: 35px;
+            text-align: center;
+            font-size: 18px;
+        }}
+        th.rotate-header {{
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            vertical-align: bottom;
+            text-align: center;
+            height: 200px;
+            white-space: nowrap;
+            min-width: 35px;
+            max-width: 35px;
+            font-size: 11px;
+        }}
+        th.first-column-header {{
+            writing-mode: horizontal-tb;
+            text-align: left;
+            min-width: 150px;
+            max-width: 200px;
+            vertical-align: middle;
+        }}
+        th.second-column-header {{
+            writing-mode: horizontal-tb;
+            text-align: left;
+            min-width: 600px;
+            max-width: 800px;
+            vertical-align: middle;
+        }}
+        th.third-column-header {{
+            writing-mode: horizontal-tb;
+            text-align: center;
+            min-width: 80px;
+            max-width: 100px;
+            vertical-align: middle;
+        }}
+        td {{
+            font-size: 14px;
+            text-align: center;
+            vertical-align: middle;
+        }}
+        td:first-child {{
+            text-align: left;
+            font-weight: 500;
+            min-width: 150px;
+        }}
+        td:nth-child(2) {{
+            text-align: left;
+            min-width: 600px;
+            max-width: 800px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }}
+        td:nth-child(3) {{
+            min-width: 80px;
+        }}
+        tr:hover {{
+            background-color: #f5f5f5;
+        }}
+        /* Freeze the first three columns */
+        td:first-child, th:first-child {{
+            position: sticky;
+            left: 0;
+            z-index: 1;
+            background-color: white;
+        }}
+        td:nth-child(2), th:nth-child(2) {{
+            position: sticky;
+            left: 150px;
+            z-index: 1;
+            background-color: white;
+        }}
+        td:nth-child(3), th:nth-child(3) {{
+            position: sticky;
+            left: 750px;
+            z-index: 1;
+            background-color: white;
+        }}
+    </style>
+    <div class="table-container">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th class="first-column-header">Entity</th>
+                    <th class="second-column-header">Summary</th>
+                    <th class="third-column-header">Flagged</th>
+                    {crime_headers}
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+    </div>
+    """
+    return html_string
+
+
 def transform_string(input_string):
     """Transform string for use as filename or folder name."""
     cleaned = re.sub(r'[^\w\s-]', '', input_string)
@@ -389,131 +538,9 @@ def main():
                     st.write(f"**Total entities: {len(activities_data)}**")
                     st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
 
-                    # Wrap table in a scrollable container
-                    st.markdown('<div style="overflow-x: auto;">', unsafe_allow_html=True)
-
-                    # Generate HTML table
-                    html_table = styled_df.to_html(escape=False, index=False)
-
-                    # Wrap crime column headers in divs for rotation
-                    # This wraps headers from column 4 onwards (after Entity, Summary, Flagged)
-                    import re
-                    def wrap_header(match):
-                        header_text = match.group(1)
-                        # Check if it's a crime column (not Entity, Summary, or Flagged)
-                        if header_text not in ["Entity", "Summary", "Flagged"]:
-                            return f'<th><div>{header_text}</div></th>'
-                        return match.group(0)
-
-                    html_table = re.sub(r'<th>([^<]+)</th>', wrap_header, html_table)
-
+                    # Generate custom HTML table
+                    html_table = generate_custom_table(styled_df, CRIME_CATEGORIES)
                     st.markdown(html_table, unsafe_allow_html=True)
-
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    # Add CSS for better table styling with vertical headers
-                    st.markdown("""
-                    <style>
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        table-layout: auto;
-                    }
-                    thead {
-                        height: 180px;
-                    }
-                    th {
-                        background-color: #f0f2f6;
-                        padding: 10px;
-                        text-align: left;
-                        font-weight: bold;
-                        border: 1px solid #ddd;
-                        position: sticky;
-                        top: 0;
-                        z-index: 10;
-                        overflow: visible;
-                    }
-                    /* Vertical headers for crime columns */
-                    th:nth-child(n+4) {
-                        height: 180px;
-                        min-width: 35px;
-                        max-width: 35px;
-                        width: 35px;
-                        padding: 0;
-                        text-align: center;
-                        vertical-align: bottom;
-                        position: relative;
-                        overflow: visible;
-                    }
-                    th:nth-child(n+4) > div {
-                        writing-mode: vertical-rl;
-                        transform: rotate(180deg);
-                        position: absolute;
-                        bottom: 8px;
-                        left: 50%;
-                        transform: translateX(-50%) rotate(180deg);
-                        white-space: nowrap;
-                        text-align: center;
-                        font-size: 11px;
-                    }
-                    /* Keep first 3 columns (Entity, Summary, Flagged) horizontal */
-                    th:nth-child(1), th:nth-child(2), th:nth-child(3) {
-                        height: auto;
-                        min-width: auto;
-                        vertical-align: middle;
-                    }
-                    /* Entity column */
-                    th:nth-child(1) {
-                        min-width: 150px;
-                    }
-                    /* Summary column - much wider */
-                    th:nth-child(2) {
-                        min-width: 600px;
-                        max-width: 800px;
-                    }
-                    /* Flagged column */
-                    th:nth-child(3) {
-                        min-width: 80px;
-                        text-align: center;
-                    }
-                    td {
-                        padding: 8px;
-                        border: 1px solid #ddd;
-                        text-align: center;
-                        vertical-align: middle;
-                    }
-                    /* Left align text for Entity and Summary columns */
-                    td:nth-child(1), td:nth-child(2) {
-                        text-align: left;
-                    }
-                    /* Entity column cells */
-                    td:nth-child(1) {
-                        min-width: 150px;
-                        font-weight: 500;
-                    }
-                    /* Summary column cells - wider with wrapping */
-                    td:nth-child(2) {
-                        min-width: 600px;
-                        max-width: 800px;
-                        white-space: pre-wrap;
-                        word-wrap: break-word;
-                    }
-                    /* Flagged column cells */
-                    td:nth-child(3) {
-                        min-width: 80px;
-                    }
-                    /* Very narrow columns for crime checkmarks */
-                    td:nth-child(n+4) {
-                        min-width: 35px;
-                        max-width: 35px;
-                        width: 35px;
-                        padding: 4px;
-                    }
-                    tr:hover {
-                        background-color: #f5f5f5;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
 
                 except Exception as e:
                     st.error(f"Could not load activities table: {e}")
