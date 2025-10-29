@@ -54,3 +54,16 @@
     "terminal.integrated.fontSize": 14,
     "terminal.integrated.cursorBlinking": true
 }
+
+
+
+{
+  "vim.statusBarColorControl": true,
+  
+  "vim.statusBarColors.normal": ["#007ACC", "#FFFFFF"],
+  "vim.statusBarColors.insert": "#00FF00",
+  "vim.statusBarColors.visual": "#FFA500",
+  "vim.statusBarColors.visualline": "#FFA500",
+  "vim.statusBarColors.visualblock": "#FFA500",
+  "vim.statusBarColors.replace": "#FF0000"
+}
