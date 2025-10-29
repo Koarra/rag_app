@@ -58,16 +58,26 @@
 
 
 {
-  "vim.statusBarColorControl": true,
-  "vim.statusBarColors.normal": ["#334FFF", "#FFFFFF"],
-  "vim.statusBarColors.insert": ["#5f0000", "#FFFFFF"],
-  "vim.statusBarColors.replace": ["#5f0000", "#FFFFFF"],
-  "vim.statusBarColors.visual": ["#5f00af", "#FFFFFF"],
-  "vim.statusBarColors.visualblock": ["#86592d", "#FFFFFF"],
-  "vim.statusBarColors.visualline": ["#005f5f", "#FFFFFF"],
-  "vim.statusBarColors.searchinprogressmode": ["#005f5f", "#FFFFFF"],
-  "vim.statusBarColors.commandlineinprogress": ["#005f5f", "#FFFFFF"],
-  "vim.statusBarColors.easymotionmode": ["#334FFF", "#FFFFFF"],
-  "vim.statusBarColors.easymotioninputmode": ["#334FFF", "#FFFFFF"],
-  "vim.statusBarColors.surroundinputmode": ["#334FFF", "#FFFFFF"]
+    "vim.statusBarColorControl": true,
+    "vim.statusBarColors.normal": ["#334FFF", "#FFFFFF"],
+    "vim.statusBarColors.insert": ["#5f0000", "#FFFFFF"],
+    "vim.statusBarColors.replace": ["#5f0000", "#FFFFFF"],
+    "vim.statusBarColors.visual": ["#5f00af", "#FFFFFF"],
+    "vim.statusBarColors.visualblock": ["#86592d", "#FFFFFF"],
+    "vim.statusBarColors.visualline": ["#005f5f", "#FFFFFF"],
+    "vim.statusBarColors.searchinprogressmode": ["#005f5f", "#FFFFFF"],
+    "vim.statusBarColors.commandlineinprogress": ["#005f5f", "#FFFFFF"],
+    "vim.statusBarColors.easymotionmode": ["#334FFF", "#FFFFFF"],
+    "vim.statusBarColors.easymotioninputmode": ["#334FFF", "#FFFFFF"],
+    "vim.statusBarColors.surroundinputmode": [
+      "#334FFF",
+      "#FFFFFF"
+    ],
+    "workbench.colorCustomizations": {
+      "statusBar.background": "#5f00af",
+      "statusBar.noFolderBackground": "#5f00af",
+      "statusBar.debuggingBackground": "#5f00af",
+      "statusBar.foreground": "#FFFFFF",
+      "statusBar.debuggingForeground": "#FFFFFF"
+    }
 }
