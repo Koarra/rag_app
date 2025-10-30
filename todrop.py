@@ -1,54 +1,3 @@
-# At the top of the file, add these imports
-from utils.func_utils import get_llm
-from coreruler.data_abstractions.query import Query
-from constants import PARTNER_NAME_MATCHING_PROMPT, PARTNER_NAME_MATCHING_ARGS
-import json
-import os
-
-def match_partner_name(kyc_partner_name, edd_partner_names):
-    """
-    Use LLM to match a KYC partner name with the most likely EDD partner name.
-    Returns the matched EDD partner name or None if no match found.
-    """
-    llm_partner_matcher = get_llm(PARTNER_NAME_MATCHING_ARGS)
-    
-    # Format the EDD partner names as a bulleted list
-    edd_partner_list = "\n".join(f"- {name}" for name in edd_partner_names)
-    
-    query = Query(
-        query_setup=PARTNER_NAME_MATCHING_PROMPT,
-        model=llm_partner_matcher,
-        system_prompt="You are a name matching assistant. Always return valid JSON."
-    )
-    
-    result = query.invoke({
-        "kyc_partner_name": kyc_partner_name,
-        "edd_partner_list": edd_partner_list
-    })
-    
-    # Parse the JSON result
-    try:
-        match_result = json.loads(result)
-        matched_name = match_result.get("matched_name")
-        confidence = match_result.get("confidence")
-        reason = match_result.get("reason")
-        
-        print(f"  Confidence: {confidence}")
-        print(f"  Reason: {reason}")
-        
-        # Validate that the matched name is in the list and confidence is acceptable
-        if matched_name and matched_name in edd_partner_names and confidence in ["high", "medium"]:
-            return matched_name
-        else:
-            return None
-            
-    except json.JSONDecodeError as e:
-        print(f"  ✗ Error parsing LLM response: {e}")
-        print(f"  Raw response: {result}")
-        return None
-
-
-# Then update your processing method:
 @staticmethod
 def processing(client_histories_parsed, edd_parsed, edd_txt_dic):
     
@@ -58,12 +7,27 @@ def processing(client_histories_parsed, edd_parsed, edd_txt_dic):
     print(f"\nEDD Partners found in text file: {edd_partner_names}")
     print(f"{'='*80}\n")
     
-    # Match each KYC partner with EDD partners
+    # ===== PARTNER NAME MATCHING SECTION (BEFORE PROCESSING) =====
+    print("Starting partner name matching...")
+    print(f"{'='*80}\n")
+    
+    # Collect all KYC partner names first
+    kyc_partner_names = []
     for partner_info in client_histories_parsed:
         folder_name = os.path.basename(partner_info.kyc_folder_path)
         kyc_partner_name = partner_info.kyc_dataset.name
+        kyc_partner_names.append({
+            "folder_name": folder_name,
+            "partner_name": kyc_partner_name,
+            "partner_info": partner_info
+        })
+    
+    # Match each KYC partner with EDD partners
+    for kyc_data in kyc_partner_names:
+        folder_name = kyc_data["folder_name"]
+        kyc_partner_name = kyc_data["partner_name"]
         
-        print(f"Processing KYC folder: {folder_name}")
+        print(f"Matching KYC folder: {folder_name}")
         print(f"KYC Partner Name: {kyc_partner_name}")
         
         # Use LLM to match with EDD partner
@@ -72,7 +36,7 @@ def processing(client_histories_parsed, edd_parsed, edd_txt_dic):
         if matched_edd_name:
             print(f"✓ Matched with EDD partner: {matched_edd_name}")
             
-            # Add folder name to the matched EDD partner's data
+            # Add folder name and KYC name to the matched EDD partner's data
             edd_txt_dic["total_wealth_composition"][matched_edd_name]["kyc_folder_name"] = folder_name
             edd_txt_dic["total_wealth_composition"][matched_edd_name]["kyc_partner_name"] = kyc_partner_name
         else:
@@ -80,68 +44,56 @@ def processing(client_histories_parsed, edd_parsed, edd_txt_dic):
         
         print(f"{'-'*80}\n")
     
-    # Continue with your existing processing.
+    print("Partner name matching completed!")
+    print(f"{'='*80}\n")
+    
+    # ===== NOW START THE MAIN PROCESSING LOOP =====
+    # At this point, edd_txt_dic has been enriched with kyc_folder_name and kyc_partner_name
+    
+    # load EDD br text parsed to get the BU extracted and type of BU
+    edd_req_type = edd_parsed["request_type"]
+    edd_ou = edd_parsed["org_unit"]
+    ou_df = pd.read_csv(OU_CODE_DATA_PATH) # to map to OU name
+    ou_df = ou_df[["orgUnitCode", "managingOrgUnitName"]]
+    edd_ou_name = ou_df[ou_df["orgUnitCode"] == edd_ou]["managingOrgUnitName"].values[0]
+    
+    # Initiate the output dictionary for storing results
+    kyc_checks_output = {}
+    kyc_checks_output["origin_of_asset"] = {}
+    kyc_checks_output["origin_of_asset"]["status"] = True
+    kyc_checks_output["origin_of_asset"]["reason"] = ''
+    kyc_checks_output["activity"] = {}
+    kyc_checks_output["activity"]["status"] = True
+    kyc_checks_output["activity"]["reason"] = ''
+    
+    # Remove empty KYC datasets due to PDFs that were not properly processed
+    print("start KYC CHECKS=============================================")
+    client_histories_parsed = [item for item in client_histories_parsed if item.kyc_dataset is not None]
+    
+    # Now you can access the matched information in your loop
+    for partner_info in client_histories_parsed:
+        print("client history parsed", client_histories_parsed)
+        print("PARTNER_INFO", partner_info)
+        print("WHICH PARTNER :::", partner_info.kyc_dataset.name)
         
+        folder_name = os.path.basename(partner_info.kyc_folder_path)
+        kyc_partner_name = partner_info.kyc_dataset.name
         
+        print(f"\n{'='*60}")
+        print(f"Running KYC analysis for folder: {folder_name}")
+        print(f"KYC Partner Name: {kyc_partner_name}")
+        print(f"{'='*60}\n")
         
+        # Find if this partner was matched with an EDD partner
+        matched_edd_partner = None
+        for edd_name, edd_data in edd_txt_dic.get("total_wealth_composition", {}).items():
+            if edd_data.get("kyc_folder_name") == folder_name:
+                matched_edd_partner = edd_name
+                print(f"This partner matches EDD partner: {edd_name}")
+                break
         
+        if not matched_edd_partner:
+            print(f"⚠ Warning: No EDD partner match found for {kyc_partner_name}")
         
-        
-        
-        root ::= match_result
-
-match_result ::= "{" ws "\"matched_name\":" ws matched_name_value "," ws "\"confidence\":" ws confidence_value "," ws "\"reason\":" ws string ws "}"
-
-matched_name_value ::= string | "null"
-
-confidence_value ::= "\"high\"" | "\"medium\"" | "\"low\"" | "\"none\""
-
-string ::=
-  "\"" (
-    [^"\\\x00-\x1F] |
-    "\\" (["\\/bfnrt] | "u" [0-9a-fA-F]{4})
-  )* "\"" ws
-
-ws ::= (" " | "\n" | "\t")*..
-
-
-
-
-
-
-# Partner Name Matching
-PARTNER_NAME_MATCHING_PROMPT = """You are helping match partner names from different data sources.
-
-KYC Partner Name: {kyc_partner_name}
-
-EDD Partner Names (from text file):
-{edd_partner_list}
-
-Task: Which EDD partner name most likely refers to the same person/entity as the KYC partner name?
-
-Output format: Return a JSON object with the following structure:
-{{
-    "matched_name": "exact EDD partner name from the list",
-    "confidence": "high/medium/low",
-    "reason": "brief explanation of why they match"
-}}
-
-If no match is found, return:
-{{
-    "matched_name": null,
-    "confidence": "none",
-    "reason": "explanation of why no match"
-}}
-
-Return ONLY valid JSON, no additional text."""
-
-PARTNER_NAME_MATCHING_ARGS = {
-    "model": DEFAULT_MODEL,
-    "size": "12b",
-    "llama_cpp_kwargs": {
-        "grammar": (GRAMMARS / "partner_name_matching.gbnf").read_text(),
-        "seed": 420,
-        "temperature": 0.0,
-    },
-}
-    # ... rest of your code
+        # Continue with your existing KYC checks...
+        # ... rest of your processing code
