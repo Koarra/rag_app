@@ -1,8 +1,11 @@
 @staticmethod
 def processing(client_histories_parsed, edd_parsed, edd_txt_dic):
     
-    # Get all partner names from EDD total_wealth_composition
-    edd_partner_names = list(edd_txt_dic.get("total_wealth_composition", {}).keys())
+    # Get all partner names from EDD total_wealth_composition (it's a list)
+    total_wealth_comp_list = edd_parsed.get("total_wealth_composition", [])
+    
+    # Extract just the partner names from the list
+    edd_partner_names = [partner["name"] for partner in total_wealth_comp_list]
     
     print(f"\nEDD Partners found in text file: {edd_partner_names}")
     print(f"{'='*80}\n")
@@ -36,9 +39,12 @@ def processing(client_histories_parsed, edd_parsed, edd_txt_dic):
         if matched_edd_name:
             print(f"✓ Matched with EDD partner: {matched_edd_name}")
             
-            # Add folder name and KYC name to the matched EDD partner's data
-            edd_txt_dic["total_wealth_composition"][matched_edd_name]["kyc_folder_name"] = folder_name
-            edd_txt_dic["total_wealth_composition"][matched_edd_name]["kyc_partner_name"] = kyc_partner_name
+            # Find the partner in the list and add the folder info
+            for partner_dict in edd_parsed["total_wealth_composition"]:
+                if partner_dict["name"] == matched_edd_name:
+                    partner_dict["kyc_folder_name"] = folder_name
+                    partner_dict["kyc_partner_name"] = kyc_partner_name
+                    break
         else:
             print(f"✗ No match found for KYC partner: {kyc_partner_name}")
         
@@ -48,34 +54,17 @@ def processing(client_histories_parsed, edd_parsed, edd_txt_dic):
     print(f"{'='*80}\n")
     
     # ===== NOW START THE MAIN PROCESSING LOOP =====
-    # At this point, edd_txt_dic has been enriched with kyc_folder_name and kyc_partner_name
+    # At this point, each partner dict in edd_parsed["total_wealth_composition"] 
+    # has been enriched with kyc_folder_name and kyc_partner_name (if matched)
     
     # load EDD br text parsed to get the BU extracted and type of BU
     edd_req_type = edd_parsed["request_type"]
     edd_ou = edd_parsed["org_unit"]
-    ou_df = pd.read_csv(OU_CODE_DATA_PATH) # to map to OU name
-    ou_df = ou_df[["orgUnitCode", "managingOrgUnitName"]]
-    edd_ou_name = ou_df[ou_df["orgUnitCode"] == edd_ou]["managingOrgUnitName"].values[0]
     
-    # Initiate the output dictionary for storing results
-    kyc_checks_output = {}
-    kyc_checks_output["origin_of_asset"] = {}
-    kyc_checks_output["origin_of_asset"]["status"] = True
-    kyc_checks_output["origin_of_asset"]["reason"] = ''
-    kyc_checks_output["activity"] = {}
-    kyc_checks_output["activity"]["status"] = True
-    kyc_checks_output["activity"]["reason"] = ''
+    # ... rest of your existing code
     
-    # Remove empty KYC datasets due to PDFs that were not properly processed
-    print("start KYC CHECKS=============================================")
-    client_histories_parsed = [item for item in client_histories_parsed if item.kyc_dataset is not None]
-    
-    # Now you can access the matched information in your loop
+    # Later in your loop, you can find matched partners like this:
     for partner_info in client_histories_parsed:
-        print("client history parsed", client_histories_parsed)
-        print("PARTNER_INFO", partner_info)
-        print("WHICH PARTNER :::", partner_info.kyc_dataset.name)
-        
         folder_name = os.path.basename(partner_info.kyc_folder_path)
         kyc_partner_name = partner_info.kyc_dataset.name
         
@@ -84,16 +73,15 @@ def processing(client_histories_parsed, edd_parsed, edd_txt_dic):
         print(f"KYC Partner Name: {kyc_partner_name}")
         print(f"{'='*60}\n")
         
-        # Find if this partner was matched with an EDD partner
+        # Find the corresponding EDD partner
         matched_edd_partner = None
-        for edd_name, edd_data in edd_txt_dic.get("total_wealth_composition", {}).items():
-            if edd_data.get("kyc_folder_name") == folder_name:
-                matched_edd_partner = edd_name
-                print(f"This partner matches EDD partner: {edd_name}")
+        for edd_partner in edd_parsed["total_wealth_composition"]:
+            if edd_partner.get("kyc_folder_name") == folder_name:
+                matched_edd_partner = edd_partner
+                print(f"This partner matches EDD partner: {edd_partner['name']}")
                 break
         
         if not matched_edd_partner:
             print(f"⚠ Warning: No EDD partner match found for {kyc_partner_name}")
         
         # Continue with your existing KYC checks...
-        # ... rest of your processing code
