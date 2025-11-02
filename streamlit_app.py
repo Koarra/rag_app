@@ -518,13 +518,10 @@ def main():
                     st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
 
                     # Edit/View toggle buttons
-                    col1, col2, col3 = st.columns([1, 1, 8])
+                    col1, col2, col3, col4 = st.columns([1, 1, 1, 7])
                     with col1:
                         if st.button("✏️ Edit Table" if not st.session_state.edit_mode_table else "👁️ View Table"):
                             st.session_state.edit_mode_table = not st.session_state.edit_mode_table
-                            if not st.session_state.edit_mode_table:
-                                # Exiting edit mode - reset to original data
-                                st.session_state.edited_activities_df = df_activities.copy()
                             st.rerun()
 
                     with col2:
@@ -533,6 +530,13 @@ def main():
                                 # Save the edited data
                                 st.session_state.edited_activities_df = st.session_state.temp_edited_df.copy()
                                 st.toast("✅ Changes saved successfully!")
+
+                    with col3:
+                        if st.button("🔄 Reset Table"):
+                            # Reset to original data from files
+                            st.session_state.edited_activities_df = df_activities.copy()
+                            st.toast("⚠️ Table reset to original data")
+                            st.rerun()
 
                     # Display mode: Edit or View
                     if st.session_state.edit_mode_table:
