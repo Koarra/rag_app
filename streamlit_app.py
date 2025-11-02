@@ -11,6 +11,7 @@ This app processes documents through a 6-step pipeline:
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import subprocess
 import json
 from pathlib import Path
@@ -528,11 +529,25 @@ def main():
                     st.write(f"**Total entities: {len(activities_data)}**")
                     st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
 
-                    # Generate custom HTML table
+                    # Prepare DataFrame for HTML table - reorder columns
                     cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
-                    col_boolean_list = ["Flagged"] + CRIME_CATEGORIES
-                    html_table = define_html(styled_df, cols_to_exclude, col_boolean_list)
-                    st.markdown(html_table, unsafe_allow_html=True)
+                    col_boolean_wo_flagged_list = CRIME_CATEGORIES
+
+                    # Get all columns and reorder: fixed columns first, then crime columns
+                    all_cols = list(styled_df.columns)
+                    for column in cols_to_exclude:
+                        if column in all_cols:
+                            all_cols.remove(column)
+
+                    # Desired order: Entity, Summary, Comments, Flagged, then crime columns
+                    desired_cols = cols_to_exclude + all_cols
+                    filtered_df = styled_df[desired_cols]
+
+                    # Generate custom HTML table
+                    html_table = define_html(filtered_df, cols_to_exclude, col_boolean_wo_flagged_list)
+
+                    # Display the custom HTML table using components.html for proper rendering
+                    components.html(html_table, height=950, scrolling=True)
 
                 except Exception as e:
                     st.error(f"Could not load activities table: {e}")
