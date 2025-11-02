@@ -96,6 +96,13 @@ def main():
         sys.exit(1)
 
     output_folder = Path(sys.argv[1])
+
+    # Check if output_folder is a file instead of a directory
+    if output_folder.exists() and output_folder.is_file():
+        print(f"Error: {output_folder} is a file, not a directory!")
+        print("Please provide a directory path for output_folder")
+        sys.exit(1)
+
     output_folder.mkdir(parents=True, exist_ok=True)
 
     print(f"\n=== STEP 5: ANALYZE RISKS ===")
