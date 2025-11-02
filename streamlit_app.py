@@ -290,71 +290,79 @@ def main():
             total_steps = len(file_paths) + 5  # Files + 5 remaining steps
             current_step = 0
 
-            # Use st.status for better UX with expandable details
-            with st.status("🔄 Processing documents...", expanded=True) as status:
-                # Progress bar
-                progress_bar = st.progress(0.0)
+            # Progress display
+            progress_placeholder = st.empty()
+            progress_bar = st.progress(0.0)
+            timer_placeholder = st.empty()
 
-                for file_path in file_paths:
+            for file_path in file_paths:
+                current_step += 1
+                progress = current_step / total_steps
+                elapsed = time.time() - start_time
+                minutes = int(elapsed // 60)
+                seconds = int(elapsed % 60)
+
+                # Update progress
+                progress_placeholder.markdown(f"### 🔄 Processing... {int(progress * 100)}%")
+                progress_bar.progress(progress)
+                timer_placeholder.caption(f"⏱️ Elapsed time: {minutes:02d}:{seconds:02d}")
+
+                success, stdout, stderr = run_step("step1_summarize.py", [str(file_path), str(outputs_folder)])
+                if not success:
+                    all_success = False
+                    errors.append(f"Step 1 failed for {file_path.name}: {stderr}")
+                    break
+
+            # Run remaining steps once (they process all entities together)
+            if all_success:
+                steps = [
+                    ("step2_extract_entities.py", "Extracting entities"),
+                    ("step3_describe_entities.py", "Describing entities"),
+                    ("step4_group_entities.py", "Grouping similar entities"),
+                    ("step5_analyze_risks.py", "Analyzing risks"),
+                    ("step6_extract_relationships.py", "Extracting relationships")
+                ]
+
+                for script, message in steps:
                     current_step += 1
                     progress = current_step / total_steps
                     elapsed = time.time() - start_time
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
 
-                    st.write(f"⏱️ **{minutes:02d}:{seconds:02d}** | Step {current_step}/{total_steps}: Extracting text from {file_path.name}...")
+                    # Update progress
+                    progress_placeholder.markdown(f"### 🔄 Processing... {int(progress * 100)}%")
                     progress_bar.progress(progress)
+                    timer_placeholder.caption(f"⏱️ Elapsed time: {minutes:02d}:{seconds:02d}")
 
-                    success, stdout, stderr = run_step("step1_summarize.py", [str(file_path), str(outputs_folder)])
+                    success, stdout, stderr = run_step(script, [str(outputs_folder)])
                     if not success:
                         all_success = False
-                        errors.append(f"Step 1 failed for {file_path.name}: {stderr}")
+                        errors.append(f"{script} failed: {stderr}")
                         break
 
-                # Run remaining steps once (they process all entities together)
-                if all_success:
-                    steps = [
-                        ("step2_extract_entities.py", "Extracting entities"),
-                        ("step3_describe_entities.py", "Describing entities"),
-                        ("step4_group_entities.py", "Grouping similar entities"),
-                        ("step5_analyze_risks.py", "Analyzing risks"),
-                        ("step6_extract_relationships.py", "Extracting relationships")
-                    ]
+            # Calculate final processing time
+            end_time = time.time()
+            processing_time = end_time - start_time
+            minutes = int(processing_time // 60)
+            seconds = int(processing_time % 60)
 
-                    for script, message in steps:
-                        current_step += 1
-                        progress = current_step / total_steps
-                        elapsed = time.time() - start_time
-                        minutes = int(elapsed // 60)
-                        seconds = int(elapsed % 60)
+            # Clear progress indicators
+            progress_placeholder.empty()
+            progress_bar.empty()
+            timer_placeholder.empty()
 
-                        st.write(f"⏱️ **{minutes:02d}:{seconds:02d}** | Step {current_step}/{total_steps}: {message}...")
-                        progress_bar.progress(progress)
-
-                        success, stdout, stderr = run_step(script, [str(outputs_folder)])
-                        if not success:
-                            all_success = False
-                            errors.append(f"{script} failed: {stderr}")
-                            break
-
-                # Calculate final processing time
-                end_time = time.time()
-                processing_time = end_time - start_time
-                minutes = int(processing_time // 60)
-                seconds = int(processing_time % 60)
-
-                if all_success:
-                    progress_bar.progress(1.0)
-                    status.update(label=f"✅ Processing completed in {minutes:02d}:{seconds:02d}", state="complete", expanded=False)
-                    st.session_state.results_ready = True
-                    st.balloons()
-                else:
-                    status.update(label=f"❌ Processing failed after {minutes:02d}:{seconds:02d}", state="error", expanded=True)
-                    st.session_state.results_ready = False
-                    if errors:
-                        st.subheader("Error Details")
-                        for error in errors:
-                            st.code(error)
+            if all_success:
+                st.success(f"✅ Processing completed in {minutes:02d}:{seconds:02d}")
+                st.session_state.results_ready = True
+                st.balloons()
+            else:
+                st.error(f"❌ Processing failed after {minutes:02d}:{seconds:02d}")
+                st.session_state.results_ready = False
+                if errors:
+                    st.subheader("Error Details")
+                    for error in errors:
+                        st.code(error)
 
         # Display results section (outside button handler so it persists across reruns)
         if st.session_state.results_ready and st.session_state.outputs_folder:
