@@ -2,6 +2,7 @@
 UI Utility Functions for Streamlit Application
 Contains reusable UI components for display and styling
 """
+import streamlit.components.v1 as components
 
 
 def define_html(filtered_df, cols_to_exclude, col_boolean_list):
@@ -148,15 +149,19 @@ def show_beautiful_progress(progress_container, percentage, elapsed_time):
     seconds = int(elapsed_time % 60)
 
     progress_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
     <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }}
+
         @keyframes pulse {{
             0%, 100% {{ opacity: 1; }}
             50% {{ opacity: 0.7; }}
-        }}
-
-        @keyframes slideIn {{
-            from {{ width: 0%; }}
-            to {{ width: {percentage}%; }}
         }}
 
         .progress-wrapper {{
@@ -165,7 +170,7 @@ def show_beautiful_progress(progress_container, percentage, elapsed_time):
             padding: 40px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             text-align: center;
-            margin: 20px 0;
+            margin: 0;
         }}
 
         .progress-title {{
@@ -216,7 +221,8 @@ def show_beautiful_progress(progress_container, percentage, elapsed_time):
             animation: pulse 1.5s ease-in-out infinite;
         }}
     </style>
-
+</head>
+<body>
     <div class="progress-wrapper">
         <div class="progress-title">
             <span class="spinner">🔄</span>
@@ -235,6 +241,9 @@ def show_beautiful_progress(progress_container, percentage, elapsed_time):
             ⏱️ {minutes:02d}:{seconds:02d}
         </div>
     </div>
+</body>
+</html>
     """
 
-    progress_container.markdown(progress_html, unsafe_allow_html=True)
+    with progress_container:
+        components.html(progress_html, height=280)
