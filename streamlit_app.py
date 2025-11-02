@@ -190,20 +190,20 @@ def transform_string(input_string):
 
 
 def run_step(script_name, args):
-    """Run a step script silently"""
+    """Run a step script with output visible in terminal"""
     try:
         cmd = ["python", script_name] + args
 
+        # Let stdout/stderr flow through to terminal instead of capturing
         result = subprocess.run(
             cmd,
-            capture_output=True,
             text=True,
             check=True
         )
 
-        return True, result.stdout, result.stderr
+        return True, "", ""
     except subprocess.CalledProcessError as e:
-        return False, e.stdout, e.stderr
+        return False, "", str(e)
 
 
 def main():
