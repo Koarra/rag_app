@@ -513,106 +513,112 @@ def main():
                     if 'edited_activities_df' not in st.session_state:
                         st.session_state.edited_activities_df = df_activities.copy()
 
+                    # Filter to show only flagged entities
+                    df_display = st.session_state.edited_activities_df[st.session_state.edited_activities_df['Flagged'] == True].copy()
+
                     # Display stats
-                    st.write(f"**Total entities: {len(activities_data)}**")
-                    st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
+                    st.write(f"**Total flagged entities: {len(df_display)}**")
 
-                    # Edit/View toggle buttons
-                    col1, col2, col3, col4 = st.columns([1, 1, 1, 7])
-                    with col1:
-                        if st.button("✏️ Edit Table" if not st.session_state.edit_mode_table else "👁️ View Table"):
-                            st.session_state.edit_mode_table = not st.session_state.edit_mode_table
-                            st.rerun()
+                    # Check if there are any flagged entities to display
+                    if len(df_display) == 0:
+                        st.info("ℹ️ No flagged entities to display. All entities have been unflagged.")
+                    else:
+                        # Edit/View toggle buttons
+                        col1, col2, col3, col4 = st.columns([1, 1, 1, 7])
+                        with col1:
+                            if st.button("✏️ Edit Table" if not st.session_state.edit_mode_table else "👁️ View Table"):
+                                st.session_state.edit_mode_table = not st.session_state.edit_mode_table
+                                st.rerun()
 
-                    with col2:
+                        with col2:
+                            if st.session_state.edit_mode_table:
+                                if st.button("💾 Save Changes"):
+                                    # Save the edited data
+                                    st.session_state.edited_activities_df = st.session_state.temp_edited_df.copy()
+                                    st.toast("✅ Changes saved successfully!")
+
+                        with col3:
+                            if st.button("🔄 Reset Table"):
+                                # Reset to original data from files
+                                st.session_state.edited_activities_df = df_activities.copy()
+                                st.toast("⚠️ Table reset to original data")
+                                st.rerun()
+
+                        # Display mode: Edit or View
                         if st.session_state.edit_mode_table:
-                            if st.button("💾 Save Changes"):
-                                # Save the edited data
-                                st.session_state.edited_activities_df = st.session_state.temp_edited_df.copy()
-                                st.toast("✅ Changes saved successfully!")
+                            # EDIT MODE: Show editable data editor
+                            st.info("🔓 **Edit Mode Active** - You can now edit any cell in the table below. Click 'Save Changes' when done.")
 
-                    with col3:
-                        if st.button("🔄 Reset Table"):
-                            # Reset to original data from files
-                            st.session_state.edited_activities_df = df_activities.copy()
-                            st.toast("⚠️ Table reset to original data")
-                            st.rerun()
+                            # Reorder columns for better editing experience
+                            cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
+                            desired_order = cols_to_exclude + CRIME_CATEGORIES
+                            df_to_edit = df_display[desired_order]
 
-                    # Display mode: Edit or View
-                    if st.session_state.edit_mode_table:
-                        # EDIT MODE: Show editable data editor
-                        st.info("🔓 **Edit Mode Active** - You can now edit any cell in the table below. Click 'Save Changes' when done.")
+                            # Configure column display
+                            column_config = {
+                                "Entity": st.column_config.TextColumn("Entity", width="medium", disabled=True),
+                                "Summary": st.column_config.TextColumn("Summary", width="large"),
+                                "Comments": st.column_config.TextColumn("Comments", width="large"),
+                                "Flagged": st.column_config.CheckboxColumn("Flagged", width="small"),
+                            }
 
-                        # Reorder columns for better editing experience
-                        cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
-                        desired_order = cols_to_exclude + CRIME_CATEGORIES
-                        df_to_edit = st.session_state.edited_activities_df[desired_order]
+                            # Add checkbox config for all crime columns
+                            for crime in CRIME_CATEGORIES:
+                                column_config[crime] = st.column_config.CheckboxColumn(
+                                    crime.replace("_", " ").title(),
+                                    width="small"
+                                )
 
-                        # Configure column display
-                        column_config = {
-                            "Entity": st.column_config.TextColumn("Entity", width="medium", disabled=True),
-                            "Summary": st.column_config.TextColumn("Summary", width="large"),
-                            "Comments": st.column_config.TextColumn("Comments", width="large"),
-                            "Flagged": st.column_config.CheckboxColumn("Flagged", width="small"),
-                        }
-
-                        # Add checkbox config for all crime columns
-                        for crime in CRIME_CATEGORIES:
-                            column_config[crime] = st.column_config.CheckboxColumn(
-                                crime.replace("_", " ").title(),
-                                width="small"
+                            # Show editable dataframe
+                            edited_df = st.data_editor(
+                                df_to_edit,
+                                use_container_width=True,
+                                height=600,
+                                column_config=column_config,
+                                hide_index=True,
+                                key="activities_editor"
                             )
 
-                        # Show editable dataframe
-                        edited_df = st.data_editor(
-                            df_to_edit,
-                            use_container_width=True,
-                            height=600,
-                            column_config=column_config,
-                            hide_index=True,
-                            key="activities_editor"
-                        )
+                            # Store temporarily for saving
+                            st.session_state.temp_edited_df = edited_df
 
-                        # Store temporarily for saving
-                        st.session_state.temp_edited_df = edited_df
+                        else:
+                            # VIEW MODE: Show custom HTML table with styling
+                            # Function to apply checkmarks and crosses
+                            def apply_checkmarks(val):
+                                if isinstance(val, bool):
+                                    if val:
+                                        return '<span style="color: green; font-size: 18px;">✓</span>'
+                                    else:
+                                        return '<span style="color: red; font-size: 18px;">✗</span>'
+                                return val
 
-                    else:
-                        # VIEW MODE: Show custom HTML table with styling
-                        # Function to apply checkmarks and crosses
-                        def apply_checkmarks(val):
-                            if isinstance(val, bool):
-                                if val:
-                                    return '<span style="color: green; font-size: 18px;">✓</span>'
-                                else:
-                                    return '<span style="color: red; font-size: 18px;">✗</span>'
-                            return val
+                            # Apply styling to boolean columns
+                            styled_df = df_display.copy()
+                            boolean_columns = ["Flagged"] + CRIME_CATEGORIES
 
-                        # Apply styling to boolean columns
-                        styled_df = st.session_state.edited_activities_df.copy()
-                        boolean_columns = ["Flagged"] + CRIME_CATEGORIES
+                            for col in boolean_columns:
+                                styled_df[col] = styled_df[col].apply(apply_checkmarks)
 
-                        for col in boolean_columns:
-                            styled_df[col] = styled_df[col].apply(apply_checkmarks)
+                            # Prepare DataFrame for HTML table - reorder columns
+                            cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
+                            col_boolean_wo_flagged_list = CRIME_CATEGORIES
 
-                        # Prepare DataFrame for HTML table - reorder columns
-                        cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
-                        col_boolean_wo_flagged_list = CRIME_CATEGORIES
+                            # Get all columns and reorder: fixed columns first, then crime columns
+                            all_cols = list(styled_df.columns)
+                            for column in cols_to_exclude:
+                                if column in all_cols:
+                                    all_cols.remove(column)
 
-                        # Get all columns and reorder: fixed columns first, then crime columns
-                        all_cols = list(styled_df.columns)
-                        for column in cols_to_exclude:
-                            if column in all_cols:
-                                all_cols.remove(column)
+                            # Desired order: Entity, Summary, Comments, Flagged, then crime columns
+                            desired_cols = cols_to_exclude + all_cols
+                            filtered_df = styled_df[desired_cols]
 
-                        # Desired order: Entity, Summary, Comments, Flagged, then crime columns
-                        desired_cols = cols_to_exclude + all_cols
-                        filtered_df = styled_df[desired_cols]
+                            # Generate custom HTML table
+                            html_table = define_html(filtered_df, cols_to_exclude, col_boolean_wo_flagged_list)
 
-                        # Generate custom HTML table
-                        html_table = define_html(filtered_df, cols_to_exclude, col_boolean_wo_flagged_list)
-
-                        # Display the custom HTML table using components.html for proper rendering
-                        components.html(html_table, height=950, scrolling=True)
+                            # Display the custom HTML table using components.html for proper rendering
+                            components.html(html_table, height=950, scrolling=True)
 
                 except Exception as e:
                     st.error(f"Could not load activities table: {e}")
