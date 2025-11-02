@@ -276,10 +276,6 @@ def main():
             import time
             start_time = time.time()
 
-            # Create a placeholder for dynamic updates
-            processing_placeholder = st.empty()
-            timer_placeholder = st.empty()
-
             # Create outputs subfolder
             outputs_folder = output_folder / "outputs"
             outputs_folder.mkdir(parents=True, exist_ok=True)
@@ -290,72 +286,75 @@ def main():
             all_success = True
             errors = []
 
-            # Cool processing animation with real-time timer
-            def update_processing_status(message, step=None, total_steps=None):
-                elapsed = time.time() - start_time
-                minutes = int(elapsed // 60)
-                seconds = int(elapsed % 60)
-
-                if step and total_steps:
-                    progress = step / total_steps
-                    progress_bar = "█" * int(progress * 20) + "░" * (20 - int(progress * 20))
-                    status_msg = f"### 🔄 {message}\n\n`[{progress_bar}]` Step {step}/{total_steps}\n\n⏱️ **Elapsed time: {minutes:02d}:{seconds:02d}**"
-                else:
-                    status_msg = f"### 🔄 {message}\n\n⏱️ **Elapsed time: {minutes:02d}:{seconds:02d}**"
-
-                processing_placeholder.markdown(status_msg)
-
             # Process all files through step 1
             total_steps = len(file_paths) + 5  # Files + 5 remaining steps
             current_step = 0
 
-            for file_path in file_paths:
-                current_step += 1
-                update_processing_status(f"Extracting text from {file_path.name}...", current_step, total_steps)
-                success, stdout, stderr = run_step("step1_summarize.py", [str(file_path), str(outputs_folder)])
-                if not success:
-                    all_success = False
-                    errors.append(f"Step 1 failed for {file_path.name}: {stderr}")
-                    break
+            # Use st.status for better UX with expandable details
+            with st.status("🔄 Processing documents...", expanded=True) as status:
+                # Progress bar
+                progress_bar = st.progress(0.0)
 
-            # Run remaining steps once (they process all entities together)
-            if all_success:
-                steps = [
-                    ("step2_extract_entities.py", "Extracting entities..."),
-                    ("step3_describe_entities.py", "Describing entities..."),
-                    ("step4_group_entities.py", "Grouping similar entities..."),
-                    ("step5_analyze_risks.py", "Analyzing risks..."),
-                    ("step6_extract_relationships.py", "Extracting relationships...")
-                ]
-
-                for script, message in steps:
+                for file_path in file_paths:
                     current_step += 1
-                    update_processing_status(message, current_step, total_steps)
-                    success, stdout, stderr = run_step(script, [str(outputs_folder)])
+                    progress = current_step / total_steps
+                    elapsed = time.time() - start_time
+                    minutes = int(elapsed // 60)
+                    seconds = int(elapsed % 60)
+
+                    st.write(f"⏱️ **{minutes:02d}:{seconds:02d}** | Step {current_step}/{total_steps}: Extracting text from {file_path.name}...")
+                    progress_bar.progress(progress)
+
+                    success, stdout, stderr = run_step("step1_summarize.py", [str(file_path), str(outputs_folder)])
                     if not success:
                         all_success = False
-                        errors.append(f"{script} failed: {stderr}")
+                        errors.append(f"Step 1 failed for {file_path.name}: {stderr}")
                         break
 
-            # Calculate final processing time
-            end_time = time.time()
-            processing_time = end_time - start_time
+                # Run remaining steps once (they process all entities together)
+                if all_success:
+                    steps = [
+                        ("step2_extract_entities.py", "Extracting entities"),
+                        ("step3_describe_entities.py", "Describing entities"),
+                        ("step4_group_entities.py", "Grouping similar entities"),
+                        ("step5_analyze_risks.py", "Analyzing risks"),
+                        ("step6_extract_relationships.py", "Extracting relationships")
+                    ]
 
-            # Clear processing message
-            processing_placeholder.empty()
-            timer_placeholder.empty()
+                    for script, message in steps:
+                        current_step += 1
+                        progress = current_step / total_steps
+                        elapsed = time.time() - start_time
+                        minutes = int(elapsed // 60)
+                        seconds = int(elapsed % 60)
 
-            if all_success:
-                st.success(f"✅ Processing completed successfully in {processing_time:.2f} seconds")
-                st.session_state.results_ready = True
-                st.balloons()
-            else:
-                st.error(f"❌ Processing failed after {processing_time:.2f} seconds")
-                st.session_state.results_ready = False
-                if errors:
-                    st.subheader("Error Details")
-                    for error in errors:
-                        st.code(error)
+                        st.write(f"⏱️ **{minutes:02d}:{seconds:02d}** | Step {current_step}/{total_steps}: {message}...")
+                        progress_bar.progress(progress)
+
+                        success, stdout, stderr = run_step(script, [str(outputs_folder)])
+                        if not success:
+                            all_success = False
+                            errors.append(f"{script} failed: {stderr}")
+                            break
+
+                # Calculate final processing time
+                end_time = time.time()
+                processing_time = end_time - start_time
+                minutes = int(processing_time // 60)
+                seconds = int(processing_time % 60)
+
+                if all_success:
+                    progress_bar.progress(1.0)
+                    status.update(label=f"✅ Processing completed in {minutes:02d}:{seconds:02d}", state="complete", expanded=False)
+                    st.session_state.results_ready = True
+                    st.balloons()
+                else:
+                    status.update(label=f"❌ Processing failed after {minutes:02d}:{seconds:02d}", state="error", expanded=True)
+                    st.session_state.results_ready = False
+                    if errors:
+                        st.subheader("Error Details")
+                        for error in errors:
+                            st.code(error)
 
         # Display results section (outside button handler so it persists across reruns)
         if st.session_state.results_ready and st.session_state.outputs_folder:
