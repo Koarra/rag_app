@@ -523,6 +523,14 @@ def main():
                     if len(df_display) == 0:
                         st.info("ℹ️ No flagged entities to display. All entities have been unflagged.")
                     else:
+                        # Filter crime columns - only show columns where at least one entity has it flagged
+                        active_crime_columns = [crime for crime in CRIME_CATEGORIES if df_display[crime].any()]
+
+                        # Show info about hidden columns
+                        hidden_columns = [crime for crime in CRIME_CATEGORIES if crime not in active_crime_columns]
+                        if hidden_columns:
+                            st.caption(f"ℹ️ Hidden columns (no entities flagged): {', '.join([c.replace('_', ' ').title() for c in hidden_columns])}")
+
                         # Edit/View toggle buttons
                         col1, col2, col3, col4 = st.columns([1, 1, 1, 7])
                         with col1:
@@ -533,9 +541,12 @@ def main():
                         with col2:
                             if st.session_state.edit_mode_table:
                                 if st.button("💾 Save Changes"):
-                                    # Save the edited data
-                                    st.session_state.edited_activities_df = st.session_state.temp_edited_df.copy()
+                                    # Save the edited data - need to restore full dataframe with all columns
+                                    # Update only the rows that were in df_display
+                                    for idx in st.session_state.temp_edited_df.index:
+                                        st.session_state.edited_activities_df.loc[idx] = st.session_state.temp_edited_df.loc[idx]
                                     st.toast("✅ Changes saved successfully!")
+                                    st.rerun()
 
                         with col3:
                             if st.button("🔄 Reset Table"):
@@ -549,9 +560,9 @@ def main():
                             # EDIT MODE: Show editable data editor
                             st.info("🔓 **Edit Mode Active** - You can now edit any cell in the table below. Click 'Save Changes' when done.")
 
-                            # Reorder columns for better editing experience
+                            # Reorder columns for better editing experience - use only active crime columns
                             cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
-                            desired_order = cols_to_exclude + CRIME_CATEGORIES
+                            desired_order = cols_to_exclude + active_crime_columns
                             df_to_edit = df_display[desired_order]
 
                             # Configure column display
@@ -562,8 +573,8 @@ def main():
                                 "Flagged": st.column_config.CheckboxColumn("Flagged", width="small"),
                             }
 
-                            # Add checkbox config for all crime columns
-                            for crime in CRIME_CATEGORIES:
+                            # Add checkbox config for active crime columns only
+                            for crime in active_crime_columns:
                                 column_config[crime] = st.column_config.CheckboxColumn(
                                     crime.replace("_", " ").title(),
                                     width="small"
@@ -593,16 +604,16 @@ def main():
                                         return '<span style="color: red; font-size: 18px;">✗</span>'
                                 return val
 
-                            # Apply styling to boolean columns
-                            styled_df = df_display.copy()
-                            boolean_columns = ["Flagged"] + CRIME_CATEGORIES
+                            # Apply styling to boolean columns - use only active crime columns
+                            styled_df = df_display[["Entity", "Summary", "Comments", "Flagged"] + active_crime_columns].copy()
+                            boolean_columns = ["Flagged"] + active_crime_columns
 
                             for col in boolean_columns:
                                 styled_df[col] = styled_df[col].apply(apply_checkmarks)
 
                             # Prepare DataFrame for HTML table - reorder columns
                             cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
-                            col_boolean_wo_flagged_list = CRIME_CATEGORIES
+                            col_boolean_wo_flagged_list = active_crime_columns
 
                             # Get all columns and reorder: fixed columns first, then crime columns
                             all_cols = list(styled_df.columns)
