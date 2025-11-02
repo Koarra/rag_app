@@ -290,22 +290,112 @@ def main():
             total_steps = len(file_paths) + 5  # Files + 5 remaining steps
             current_step = 0
 
-            # Progress display
-            progress_placeholder = st.empty()
-            progress_bar = st.progress(0.0)
-            timer_placeholder = st.empty()
+            # Beautiful progress display container
+            progress_container = st.empty()
+
+            def show_beautiful_progress(percentage, elapsed_time):
+                """Display a beautiful progress UI"""
+                minutes = int(elapsed_time // 60)
+                seconds = int(elapsed_time % 60)
+
+                progress_html = f"""
+                <style>
+                    @keyframes pulse {{
+                        0%, 100% {{ opacity: 1; }}
+                        50% {{ opacity: 0.7; }}
+                    }}
+
+                    @keyframes slideIn {{
+                        from {{ width: 0%; }}
+                        to {{ width: {percentage}%; }}
+                    }}
+
+                    .progress-wrapper {{
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        border-radius: 20px;
+                        padding: 40px;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                        text-align: center;
+                        margin: 20px 0;
+                    }}
+
+                    .progress-title {{
+                        color: white;
+                        font-size: 28px;
+                        font-weight: 600;
+                        margin-bottom: 10px;
+                        animation: pulse 2s ease-in-out infinite;
+                    }}
+
+                    .progress-percentage {{
+                        color: #fff;
+                        font-size: 48px;
+                        font-weight: 700;
+                        margin: 20px 0;
+                        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+                    }}
+
+                    .progress-bar-container {{
+                        background: rgba(255,255,255,0.2);
+                        border-radius: 50px;
+                        height: 20px;
+                        overflow: hidden;
+                        margin: 30px 0;
+                        box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+                    }}
+
+                    .progress-bar-fill {{
+                        background: linear-gradient(90deg, #48c6ef 0%, #6f86d6 100%);
+                        height: 100%;
+                        width: {percentage}%;
+                        border-radius: 50px;
+                        transition: width 0.5s ease-in-out;
+                        box-shadow: 0 2px 10px rgba(72, 198, 239, 0.5);
+                    }}
+
+                    .progress-timer {{
+                        color: rgba(255,255,255,0.9);
+                        font-size: 18px;
+                        font-weight: 500;
+                        margin-top: 15px;
+                        letter-spacing: 1px;
+                    }}
+
+                    .spinner {{
+                        display: inline-block;
+                        margin-right: 10px;
+                        animation: pulse 1.5s ease-in-out infinite;
+                    }}
+                </style>
+
+                <div class="progress-wrapper">
+                    <div class="progress-title">
+                        <span class="spinner">🔄</span>
+                        Processing Your Documents
+                    </div>
+
+                    <div class="progress-percentage">
+                        {percentage}%
+                    </div>
+
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill"></div>
+                    </div>
+
+                    <div class="progress-timer">
+                        ⏱️ {minutes:02d}:{seconds:02d}
+                    </div>
+                </div>
+                """
+
+                progress_container.markdown(progress_html, unsafe_allow_html=True)
 
             for file_path in file_paths:
                 current_step += 1
                 progress = current_step / total_steps
                 elapsed = time.time() - start_time
-                minutes = int(elapsed // 60)
-                seconds = int(elapsed % 60)
 
-                # Update progress
-                progress_placeholder.markdown(f"### 🔄 Processing... {int(progress * 100)}%")
-                progress_bar.progress(progress)
-                timer_placeholder.caption(f"⏱️ Elapsed time: {minutes:02d}:{seconds:02d}")
+                show_beautiful_progress(int(progress * 100), elapsed)
 
                 success, stdout, stderr = run_step("step1_summarize.py", [str(file_path), str(outputs_folder)])
                 if not success:
@@ -327,13 +417,8 @@ def main():
                     current_step += 1
                     progress = current_step / total_steps
                     elapsed = time.time() - start_time
-                    minutes = int(elapsed // 60)
-                    seconds = int(elapsed % 60)
 
-                    # Update progress
-                    progress_placeholder.markdown(f"### 🔄 Processing... {int(progress * 100)}%")
-                    progress_bar.progress(progress)
-                    timer_placeholder.caption(f"⏱️ Elapsed time: {minutes:02d}:{seconds:02d}")
+                    show_beautiful_progress(int(progress * 100), elapsed)
 
                     success, stdout, stderr = run_step(script, [str(outputs_folder)])
                     if not success:
@@ -347,10 +432,8 @@ def main():
             minutes = int(processing_time // 60)
             seconds = int(processing_time % 60)
 
-            # Clear progress indicators
-            progress_placeholder.empty()
-            progress_bar.empty()
-            timer_placeholder.empty()
+            # Clear progress display
+            progress_container.empty()
 
             if all_success:
                 st.success(f"✅ Processing completed in {minutes:02d}:{seconds:02d}")
