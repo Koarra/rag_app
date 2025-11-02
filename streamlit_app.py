@@ -11,6 +11,7 @@ This app processes documents through a 6-step pipeline:
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import subprocess
 import json
 from pathlib import Path
@@ -545,8 +546,8 @@ def main():
                     # Generate custom HTML table
                     html_table = define_html(filtered_df, cols_to_exclude, col_boolean_wo_flagged_list)
 
-                    # Display the custom HTML table using st.html (not st.markdown!)
-                    st.html(html_table)
+                    # Display the custom HTML table using components.html for proper rendering
+                    components.html(html_table, height=950, scrolling=True)
 
                 except Exception as e:
                     st.error(f"Could not load activities table: {e}")
