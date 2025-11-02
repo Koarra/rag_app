@@ -475,17 +475,19 @@ def main():
                         "human_trafficking"
                     ]
 
-                    # Build activities table data
+                    # Build activities table data - ONLY FLAGGED ENTITIES
                     activities_data = []
                     for entity_name, description in entities.items():
                         # Check if entity is flagged
                         is_flagged = entity_name in entity_crimes
 
-                        # Build summary (description + reasoning if flagged)
-                        summary = description
-                        if is_flagged:
-                            reasoning = entity_crimes[entity_name]['reasoning']
-                            summary = f"{description}\n\nReason: {reasoning}"
+                        # ONLY ADD FLAGGED ENTITIES TO THE TABLE
+                        if not is_flagged:
+                            continue
+
+                        # Build summary (description + reasoning)
+                        reasoning = entity_crimes[entity_name]['reasoning']
+                        summary = f"{description}\n\nReason: {reasoning}"
 
                         # Create row data
                         row = {
@@ -496,13 +498,9 @@ def main():
                         }
 
                         # Add crime columns
-                        if is_flagged:
-                            entity_crime_set = entity_crimes[entity_name]['crimes']
-                            for crime in CRIME_CATEGORIES:
-                                row[crime] = crime in entity_crime_set
-                        else:
-                            for crime in CRIME_CATEGORIES:
-                                row[crime] = False
+                        entity_crime_set = entity_crimes[entity_name]['crimes']
+                        for crime in CRIME_CATEGORIES:
+                            row[crime] = crime in entity_crime_set
 
                         activities_data.append(row)
 
