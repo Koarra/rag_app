@@ -46,6 +46,26 @@ DUCKDB_DB_PATH = ASSET_FOLDER / "articledetective_feedback.duckdb"
 def define_html(filtered_df, cols_to_exclude, col_boolean_list):
     """Generate custom HTML table with styled headers"""
 
+    # Build table rows
+    rows_html = []
+    for row in filtered_df.values:
+        cells = []
+        for col, cell in zip(filtered_df.columns, row):
+            if col in col_boolean_list:
+                cells.append(f'<td class="boolean-column">{cell}</td>')
+            else:
+                cells.append(f'<td>{cell}</td>')
+        rows_html.append(f"<tr>{''.join(cells)}</tr>")
+
+    rows_str = " ".join(rows_html)
+
+    # Build crime column headers
+    crime_headers = " ".join(
+        f"<th class='rotate-header'>{col}</th>"
+        for col in filtered_df.columns
+        if col not in cols_to_exclude
+    )
+
     html_string = f"""
     <style>
         .table-container {{
@@ -149,14 +169,11 @@ def define_html(filtered_df, cols_to_exclude, col_boolean_list):
                     <th class="second-column-header">Summary</th>
                     <th class="third-column-header">Comments</th>
                     <th class="fourth-column-header">Flagged</th>
-                    {" ".join(f"<th class='rotate-header'>{col}</th>" for col in filtered_df.columns if col not in cols_to_exclude)}
+                    {crime_headers}
                 </tr>
             </thead>
             <tbody>
-                {" ".join(
-                    f"<tr>{' '.join(f'<td class=\"boolean-column\">{cell}</td>' if col in col_boolean_list else f'<td>{cell}</td>' for col, cell in zip(filtered_df.columns, row))}</tr>"
-                    for row in filtered_df.values
-                )}
+                {rows_str}
             </tbody>
         </table>
     </div>
