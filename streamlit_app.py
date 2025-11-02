@@ -43,6 +43,127 @@ SQLITE_DB_PATH = ASSET_FOLDER / "articledetective_feedback.db"
 DUCKDB_DB_PATH = ASSET_FOLDER / "articledetective_feedback.duckdb"
 
 
+def define_html(filtered_df, cols_to_exclude, col_boolean_list):
+    """Generate custom HTML table with styled headers"""
+
+    html_string = f"""
+    <style>
+        .table-container {{
+            width: 100%;
+            height: 900px; /* Ensure a fixed height for the container */
+            overflow-x: auto;  /* Always show horizontal scrollbar */
+            overflow-y: auto;  /* Always show vertical scrollbar */
+        }}
+        table.custom-table {{
+            border-collapse: collapse;
+            width: 99%;  /* Set table width to 99% */
+            table-layout: auto; /* Allow table to automatically adjust column widths */
+        }}
+        thead {{
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            backdrop-filter: blur(8px);
+        }}
+        th, td {{
+            min-width: 50px; /* Adjust the minimum column width as needed */
+            max-width: 300px;
+            max-height: 20px;
+            padding: 50px;
+            overflow: hidden;
+            text-overflow: nowrap; /* Increased padding for better visibility */
+        }}
+        .boolean-column {{
+            min-width: 10px;
+            max-width: 20px;
+            text-align: center;
+        }}
+        /* Add vertical space between header and first row */
+        th {{
+            padding-bottom: 50px; /* Adjust this value to increase/decrease spacing */
+        }}
+        th.rotate-header {{
+            writing-mode: vertical-rl;
+            transform: rotate(205deg);
+            vertical-align: bottom;
+            text-align: center;
+            height: 250px; /* Adjusted height */
+            white-space: normal;  /* Allow text to break into multiple lines */
+            word-wrap: break-word; /* Ensure long text breaks */
+            max-width: 500px;  /* Adjust this value to control how long text can be before wrapping */
+        }}
+        th.first-column-header {{
+            writing-mode: horizontal-tb; /* Keep the first column header horizontal */
+            text-align: center;
+            height: 5px;
+            max-width: 15px;
+            vertical-align: bottom;
+        }}
+        /* Custom style for second column (Summary) */
+        th.second-column-header {{
+            writing-mode: horizontal-tb; /* Keep the first column header horizontal */
+            text-align: center;
+            height: 5px;
+            max-width: 15px;
+            vertical-align: bottom;
+        }}
+        /* Custom style for third column (Comments) */
+        th.third-column-header {{
+            writing-mode: horizontal-tb; /* Keep the first column header horizontal */
+            text-align: center;
+            height: 5px;
+            max-width: 500px;
+            vertical-align: bottom;
+        }}
+        /* Custom style for fourth column (Flagged) */
+        th.fourth-column-header {{
+            writing-mode: vertical-tb; /* Keep the first column header horizontal */
+            text-align: center;
+            height: 5px;
+            max-width: 100px;
+            vertical-align: bottom;
+        }}
+        td {{
+            border: 1px solid #dddddd;
+            text-align: center;
+            font-size: 14px;  /* Increased font size for better visibility */
+        }}
+        /* Freeze the first column */
+        td:first-child, th:first-child {{
+            z-index: 1; /* Ensure it appears above other cells when scrolling */
+        }}
+        /* Freeze the second column */
+        td:nth-child(2), th:nth-child(2) {{
+            z-index: 1;
+        }}
+        /* Freeze the third column */
+        td:nth-child(3), th:nth-child(3) {{
+            z-index: 1;
+        }}
+    </style>
+    <div class="table-container">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th class="first-column-header">Entity</th>
+                    <th class="second-column-header">Summary</th>
+                    <th class="third-column-header">Comments</th>
+                    <th class="fourth-column-header">Flagged</th>
+                    {" ".join(f"<th class='rotate-header'>{col}</th>" for col in filtered_df.columns if col not in cols_to_exclude)}
+                </tr>
+            </thead>
+            <tbody>
+                {" ".join(
+                    f"<tr>{' '.join(f'<td class=\"boolean-column\">{cell}</td>' if col in col_boolean_list else f'<td>{cell}</td>' for col, cell in zip(filtered_df.columns, row))}</tr>"
+                    for row in filtered_df.values
+                )}
+            </tbody>
+        </table>
+    </div>
+    """
+    return html_string
+
+
 def transform_string(input_string):
     """Transform string for use as filename or folder name."""
     cleaned = re.sub(r'[^\w\s-]', '', input_string)
@@ -352,6 +473,7 @@ def main():
                         row = {
                             "Entity": entity_name,
                             "Summary": summary,
+                            "Comments": "",  # Empty comments field
                             "Flagged": is_flagged
                         }
 
@@ -389,131 +511,11 @@ def main():
                     st.write(f"**Total entities: {len(activities_data)}**")
                     st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
 
-                    # Wrap table in a scrollable container
-                    st.markdown('<div style="overflow-x: auto;">', unsafe_allow_html=True)
-
-                    # Generate HTML table
-                    html_table = styled_df.to_html(escape=False, index=False)
-
-                    # Wrap crime column headers in divs for rotation
-                    # This wraps headers from column 4 onwards (after Entity, Summary, Flagged)
-                    import re
-                    def wrap_header(match):
-                        header_text = match.group(1)
-                        # Check if it's a crime column (not Entity, Summary, or Flagged)
-                        if header_text not in ["Entity", "Summary", "Flagged"]:
-                            return f'<th><div>{header_text}</div></th>'
-                        return match.group(0)
-
-                    html_table = re.sub(r'<th>([^<]+)</th>', wrap_header, html_table)
-
+                    # Generate custom HTML table
+                    cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
+                    col_boolean_list = ["Flagged"] + CRIME_CATEGORIES
+                    html_table = define_html(styled_df, cols_to_exclude, col_boolean_list)
                     st.markdown(html_table, unsafe_allow_html=True)
-
-                    st.markdown('</div>', unsafe_allow_html=True)
-
-                    # Add CSS for better table styling with diagonal headers
-                    st.markdown("""
-                    <style>
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        table-layout: auto;
-                    }
-                    thead {
-                        height: 140px;
-                    }
-                    th {
-                        background-color: #f0f2f6;
-                        padding: 10px;
-                        text-align: left;
-                        font-weight: bold;
-                        border: 1px solid #ddd;
-                        position: sticky;
-                        top: 0;
-                        z-index: 10;
-                        overflow: visible;
-                    }
-                    /* Diagonal headers for crime columns - more horizontal */
-                    th:nth-child(n+4) {
-                        height: 140px;
-                        min-width: 35px;
-                        max-width: 35px;
-                        width: 35px;
-                        padding: 0;
-                        text-align: center;
-                        vertical-align: bottom;
-                        position: relative;
-                        overflow: visible;
-                    }
-                    th:nth-child(n+4) > div {
-                        position: absolute;
-                        bottom: 8px;
-                        left: 50%;
-                        transform: translateX(-50%) rotate(-30deg);
-                        transform-origin: center bottom;
-                        white-space: nowrap;
-                        width: 180px;
-                        text-align: left;
-                        font-size: 11px;
-                    }
-                    /* Keep first 3 columns (Entity, Summary, Flagged) horizontal */
-                    th:nth-child(1), th:nth-child(2), th:nth-child(3) {
-                        height: auto;
-                        min-width: auto;
-                        vertical-align: middle;
-                    }
-                    /* Entity column */
-                    th:nth-child(1) {
-                        min-width: 150px;
-                    }
-                    /* Summary column - much wider */
-                    th:nth-child(2) {
-                        min-width: 600px;
-                        max-width: 800px;
-                    }
-                    /* Flagged column */
-                    th:nth-child(3) {
-                        min-width: 80px;
-                        text-align: center;
-                    }
-                    td {
-                        padding: 8px;
-                        border: 1px solid #ddd;
-                        text-align: center;
-                        vertical-align: middle;
-                    }
-                    /* Left align text for Entity and Summary columns */
-                    td:nth-child(1), td:nth-child(2) {
-                        text-align: left;
-                    }
-                    /* Entity column cells */
-                    td:nth-child(1) {
-                        min-width: 150px;
-                        font-weight: 500;
-                    }
-                    /* Summary column cells - wider with wrapping */
-                    td:nth-child(2) {
-                        min-width: 600px;
-                        max-width: 800px;
-                        white-space: pre-wrap;
-                        word-wrap: break-word;
-                    }
-                    /* Flagged column cells */
-                    td:nth-child(3) {
-                        min-width: 80px;
-                    }
-                    /* Very narrow columns for crime checkmarks */
-                    td:nth-child(n+4) {
-                        min-width: 35px;
-                        max-width: 35px;
-                        width: 35px;
-                        padding: 4px;
-                    }
-                    tr:hover {
-                        background-color: #f5f5f5;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
 
                 except Exception as e:
                     st.error(f"Could not load activities table: {e}")
