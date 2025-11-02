@@ -528,11 +528,22 @@ def main():
                     st.write(f"**Total entities: {len(activities_data)}**")
                     st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
 
+                    # Debug: Show dataframe columns
+                    st.write(f"**Debug - DataFrame columns:** {list(styled_df.columns)}")
+                    st.write(f"**Debug - DataFrame shape:** {styled_df.shape}")
+
                     # Generate custom HTML table
                     cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
                     col_boolean_list = ["Flagged"] + CRIME_CATEGORIES
-                    html_table = define_html(styled_df, cols_to_exclude, col_boolean_list)
-                    st.markdown(html_table, unsafe_allow_html=True)
+
+                    try:
+                        html_table = define_html(styled_df, cols_to_exclude, col_boolean_list)
+                        st.write(f"**Debug - HTML generated, length:** {len(html_table)}")
+                        st.markdown(html_table, unsafe_allow_html=True)
+                    except Exception as html_error:
+                        st.error(f"Error generating HTML table: {html_error}")
+                        import traceback
+                        st.code(traceback.format_exc())
 
                 except Exception as e:
                     st.error(f"Could not load activities table: {e}")
