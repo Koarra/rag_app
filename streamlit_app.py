@@ -531,6 +531,37 @@ def main():
                         if hidden_columns:
                             st.caption(f"ℹ️ Hidden columns (no entities flagged): {', '.join([c.replace('_', ' ').title() for c in hidden_columns])}")
 
+                        # Column selector - allow user to select which crime columns to display
+                        with st.expander("🎛️ Select Crime Columns to Display", expanded=False):
+                            # Initialize selected columns in session state
+                            if 'selected_crime_columns' not in st.session_state:
+                                st.session_state.selected_crime_columns = active_crime_columns.copy()
+
+                            # Update selected columns if active columns changed (e.g., after editing)
+                            # Keep only columns that are still active
+                            st.session_state.selected_crime_columns = [
+                                col for col in st.session_state.selected_crime_columns
+                                if col in active_crime_columns
+                            ]
+                            # If no columns left, default to all active
+                            if not st.session_state.selected_crime_columns:
+                                st.session_state.selected_crime_columns = active_crime_columns.copy()
+
+                            # Multiselect for crime columns
+                            selected_columns = st.multiselect(
+                                "Choose which crime categories to display:",
+                                options=active_crime_columns,
+                                default=st.session_state.selected_crime_columns,
+                                format_func=lambda x: x.replace("_", " ").title(),
+                                key="crime_column_selector"
+                            )
+
+                            # Update session state with current selection
+                            st.session_state.selected_crime_columns = selected_columns if selected_columns else active_crime_columns
+
+                        # Use selected columns for display
+                        display_crime_columns = st.session_state.selected_crime_columns
+
                         # Edit/View toggle buttons
                         col1, col2, col3, col4 = st.columns([1, 1, 1, 7])
                         with col1:
@@ -560,9 +591,9 @@ def main():
                             # EDIT MODE: Show editable data editor
                             st.info("🔓 **Edit Mode Active** - You can now edit any cell in the table below. Click 'Save Changes' when done.")
 
-                            # Reorder columns for better editing experience - use only active crime columns
+                            # Reorder columns for better editing experience - use selected crime columns
                             cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
-                            desired_order = cols_to_exclude + active_crime_columns
+                            desired_order = cols_to_exclude + display_crime_columns
                             df_to_edit = df_display[desired_order]
 
                             # Configure column display
@@ -573,8 +604,8 @@ def main():
                                 "Flagged": st.column_config.CheckboxColumn("Flagged", width="small"),
                             }
 
-                            # Add checkbox config for active crime columns only
-                            for crime in active_crime_columns:
+                            # Add checkbox config for selected crime columns only
+                            for crime in display_crime_columns:
                                 column_config[crime] = st.column_config.CheckboxColumn(
                                     crime.replace("_", " ").title(),
                                     width="small"
@@ -604,16 +635,16 @@ def main():
                                         return '<span style="color: red; font-size: 18px;">✗</span>'
                                 return val
 
-                            # Apply styling to boolean columns - use only active crime columns
-                            styled_df = df_display[["Entity", "Summary", "Comments", "Flagged"] + active_crime_columns].copy()
-                            boolean_columns = ["Flagged"] + active_crime_columns
+                            # Apply styling to boolean columns - use selected crime columns
+                            styled_df = df_display[["Entity", "Summary", "Comments", "Flagged"] + display_crime_columns].copy()
+                            boolean_columns = ["Flagged"] + display_crime_columns
 
                             for col in boolean_columns:
                                 styled_df[col] = styled_df[col].apply(apply_checkmarks)
 
                             # Prepare DataFrame for HTML table - reorder columns
                             cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
-                            col_boolean_wo_flagged_list = active_crime_columns
+                            col_boolean_wo_flagged_list = display_crime_columns
 
                             # Get all columns and reorder: fixed columns first, then crime columns
                             all_cols = list(styled_df.columns)
