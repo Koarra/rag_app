@@ -43,134 +43,102 @@ SQLITE_DB_PATH = ASSET_FOLDER / "articledetective_feedback.db"
 DUCKDB_DB_PATH = ASSET_FOLDER / "articledetective_feedback.duckdb"
 
 
-def generate_custom_table(df, crime_columns):
+def define_html(filtered_df, cols_to_exclude, col_boolean_list):
     """Generate custom HTML table with styled headers"""
-
-    # Prepare table rows
-    rows_html = ""
-    for _, row in df.iterrows():
-        cells = []
-        for col in df.columns:
-            if col in crime_columns or col == "Flagged":
-                cells.append(f'<td class="boolean-column">{row[col]}</td>')
-            else:
-                cells.append(f'<td>{row[col]}</td>')
-        rows_html += f"<tr>{''.join(cells)}</tr>"
-
-    # Generate crime column headers (rotated)
-    crime_headers = " ".join(
-        f"<th class='rotate-header'>{col.replace('_', ' ').title()}</th>"
-        for col in crime_columns
-    )
 
     html_string = f"""
     <style>
         .table-container {{
             width: 100%;
-            height: 900px;
-            overflow-x: auto;
-            overflow-y: auto;
+            height: 900px; /* Ensure a fixed height for the container */
+            overflow-x: auto;  /* Always show horizontal scrollbar */
+            overflow-y: auto;  /* Always show vertical scrollbar */
         }}
         table.custom-table {{
             border-collapse: collapse;
-            width: 99%;
-            table-layout: auto;
+            width: 99%;  /* Set table width to 99% */
+            table-layout: auto; /* Allow table to automatically adjust column widths */
         }}
         thead {{
             position: sticky;
             top: 0;
             z-index: 10;
-            background-color: #f0f2f6;
             backdrop-filter: blur(8px);
         }}
         th, td {{
-            border: 1px solid #dddddd;
-            padding: 8px;
+            min-width: 50px; /* Adjust the minimum column width as needed */
+            max-width: 300px;
+            max-height: 20px;
+            padding: 50px;
             overflow: hidden;
-        }}
-        th {{
-            padding-bottom: 10px;
-            font-weight: bold;
+            text-overflow: nowrap; /* Increased padding for better visibility */
         }}
         .boolean-column {{
-            min-width: 35px;
-            max-width: 35px;
+            min-width: 10px;
+            max-width: 20px;
             text-align: center;
-            font-size: 18px;
+        }}
+        /* Add vertical space between header and first row */
+        th {{
+            padding-bottom: 50px; /* Adjust this value to increase/decrease spacing */
         }}
         th.rotate-header {{
             writing-mode: vertical-rl;
-            transform: rotate(180deg);
+            transform: rotate(205deg);
             vertical-align: bottom;
             text-align: center;
-            height: 200px;
-            white-space: nowrap;
-            min-width: 35px;
-            max-width: 35px;
-            font-size: 11px;
+            height: 250px; /* Adjusted height */
+            white-space: normal;  /* Allow text to break into multiple lines */
+            word-wrap: break-word; /* Ensure long text breaks */
+            max-width: 500px;  /* Adjust this value to control how long text can be before wrapping */
         }}
         th.first-column-header {{
-            writing-mode: horizontal-tb;
-            text-align: left;
-            min-width: 150px;
-            max-width: 200px;
-            vertical-align: middle;
-        }}
-        th.second-column-header {{
-            writing-mode: horizontal-tb;
-            text-align: left;
-            min-width: 600px;
-            max-width: 800px;
-            vertical-align: middle;
-        }}
-        th.third-column-header {{
-            writing-mode: horizontal-tb;
+            writing-mode: horizontal-tb; /* Keep the first column header horizontal */
             text-align: center;
-            min-width: 80px;
+            height: 5px;
+            max-width: 15px;
+            vertical-align: bottom;
+        }}
+        /* Custom style for second column (Summary) */
+        th.second-column-header {{
+            writing-mode: horizontal-tb; /* Keep the first column header horizontal */
+            text-align: center;
+            height: 5px;
+            max-width: 15px;
+            vertical-align: bottom;
+        }}
+        /* Custom style for third column (Comments) */
+        th.third-column-header {{
+            writing-mode: horizontal-tb; /* Keep the first column header horizontal */
+            text-align: center;
+            height: 5px;
+            max-width: 500px;
+            vertical-align: bottom;
+        }}
+        /* Custom style for fourth column (Flagged) */
+        th.fourth-column-header {{
+            writing-mode: vertical-tb; /* Keep the first column header horizontal */
+            text-align: center;
+            height: 5px;
             max-width: 100px;
-            vertical-align: middle;
+            vertical-align: bottom;
         }}
         td {{
-            font-size: 14px;
+            border: 1px solid #dddddd;
             text-align: center;
-            vertical-align: middle;
+            font-size: 14px;  /* Increased font size for better visibility */
         }}
-        td:first-child {{
-            text-align: left;
-            font-weight: 500;
-            min-width: 150px;
-        }}
-        td:nth-child(2) {{
-            text-align: left;
-            min-width: 600px;
-            max-width: 800px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }}
-        td:nth-child(3) {{
-            min-width: 80px;
-        }}
-        tr:hover {{
-            background-color: #f5f5f5;
-        }}
-        /* Freeze the first three columns */
+        /* Freeze the first column */
         td:first-child, th:first-child {{
-            position: sticky;
-            left: 0;
-            z-index: 1;
-            background-color: white;
+            z-index: 1; /* Ensure it appears above other cells when scrolling */
         }}
+        /* Freeze the second column */
         td:nth-child(2), th:nth-child(2) {{
-            position: sticky;
-            left: 150px;
             z-index: 1;
-            background-color: white;
         }}
+        /* Freeze the third column */
         td:nth-child(3), th:nth-child(3) {{
-            position: sticky;
-            left: 750px;
             z-index: 1;
-            background-color: white;
         }}
     </style>
     <div class="table-container">
@@ -179,12 +147,16 @@ def generate_custom_table(df, crime_columns):
                 <tr>
                     <th class="first-column-header">Entity</th>
                     <th class="second-column-header">Summary</th>
-                    <th class="third-column-header">Flagged</th>
-                    {crime_headers}
+                    <th class="third-column-header">Comments</th>
+                    <th class="fourth-column-header">Flagged</th>
+                    {" ".join(f"<th class='rotate-header'>{col}</th>" for col in filtered_df.columns if col not in cols_to_exclude)}
                 </tr>
             </thead>
             <tbody>
-                {rows_html}
+                {" ".join(
+                    f"<tr>{' '.join(f'<td class=\"boolean-column\">{cell}</td>' if col in col_boolean_list else f'<td>{cell}</td>' for col, cell in zip(filtered_df.columns, row))}</tr>"
+                    for row in filtered_df.values
+                )}
             </tbody>
         </table>
     </div>
@@ -501,6 +473,7 @@ def main():
                         row = {
                             "Entity": entity_name,
                             "Summary": summary,
+                            "Comments": "",  # Empty comments field
                             "Flagged": is_flagged
                         }
 
@@ -539,7 +512,9 @@ def main():
                     st.write(f"**Flagged entities: {sum(1 for row in activities_data if row['Flagged'])}**")
 
                     # Generate custom HTML table
-                    html_table = generate_custom_table(styled_df, CRIME_CATEGORIES)
+                    cols_to_exclude = ["Entity", "Summary", "Comments", "Flagged"]
+                    col_boolean_list = ["Flagged"] + CRIME_CATEGORIES
+                    html_table = define_html(styled_df, cols_to_exclude, col_boolean_list)
                     st.markdown(html_table, unsafe_allow_html=True)
 
                 except Exception as e:
