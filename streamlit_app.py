@@ -86,17 +86,47 @@ def main():
 
     st.markdown("---")
 
-    # File upload section
-    st.header("Upload Documents")
-    uploaded_files = st.file_uploader(
-        "Choose your files",
-        type=["docx", "pdf"],
-        accept_multiple_files=True,
-        help="Upload one or more PDF or DOCX files for analysis"
-    )
+    # File upload section with two-column layout
+    st.header("📤 Upload Documents")
+
+    col_upload, col_info = st.columns([1, 1])
+
+    with col_upload:
+        with st.container():
+            st.markdown("##### 📁 Select Files")
+            uploaded_files = st.file_uploader(
+                "Drag and drop or browse",
+                type=["docx", "pdf"],
+                accept_multiple_files=True,
+                help="Upload one or more PDF or DOCX files for analysis",
+                label_visibility="collapsed"
+            )
+
+            if uploaded_files:
+                st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
+
+    with col_info:
+        with st.container():
+            st.markdown("##### 📋 Document Information")
+            if uploaded_files:
+                # Show document details
+                total_size = sum(f.size for f in uploaded_files)
+                total_size_mb = total_size / (1024 * 1024)
+
+                st.metric("Total Files", len(uploaded_files))
+                st.metric("Total Size", f"{total_size_mb:.2f} MB")
+
+                # Show file list with details
+                with st.expander("📄 View File Details", expanded=True):
+                    for i, file in enumerate(uploaded_files, 1):
+                        file_size_kb = file.size / 1024
+                        file_type = "PDF" if file.name.endswith('.pdf') else "DOCX"
+                        st.text(f"{i}. {file.name}")
+                        st.caption(f"   Type: {file_type} | Size: {file_size_kb:.1f} KB")
+            else:
+                st.info("👈 Upload documents to see details here")
 
     if uploaded_files:
-        st.success(f"✓ {len(uploaded_files)} file(s) uploaded")
 
         # Create folder structure
         if len(uploaded_files) == 1:
