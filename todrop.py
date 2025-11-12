@@ -1,7 +1,58 @@
-Domenico is excellent with data—extremely careful and thorough in his work. What stands out most is his ability to think ahead and spot issues or considerations that stakeholders haven't anticipated. This proactive approach has saved us from problems multiple times and consistently adds value beyond the original ask.
-How would you rate his technical proficiency with tools and methods relevant to our work?
-Very strong. He's comfortable with the technical tools we use and applies them effectively. His work is always well-structured and reliable.
-Does he consistently deliver high-quality and accurate work? How well does he manage and deliver projects on time and within scope?
-Yes, consistently. Domenico always meets deadlines without cutting corners on quality. His attention to detail means I can trust his work is accurate, and he manages his time well to deliver on schedule.
-Does he take initiative and ownership of his responsibilities?
-Definitely. He doesn't just complete tasks—he thinks critically about the bigger picture and makes sure his work delivers real value. His proactive mindset and sense of ownership make him a great colleague to work with.
+import logging
+
+# Create logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create formatters
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Console handler (outputs to terminal)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)  # Only INFO and above to console
+console_handler.setFormatter(formatter)
+
+# File handler (outputs to file)
+file_handler = logging.FileHandler('app.log')
+file_handler.setLevel(logging.DEBUG)  # All levels to file
+file_handler.setFormatter(formatter)
+
+# Add handlers to logger
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
+
+# Now log some messages
+logger.debug("This only goes to the file")
+logger.info("This goes to both console and file")
+logger.warning("This also goes to both")
+logger.error("Error logged to both destinations")
+
+try:
+    1 / 0
+except ZeroDivisionError:
+    logger.exception("Exception with full traceback")
+```
+
+**Console output:**
+```
+2025-11-12 10:45:30,123 - __main__ - INFO - This goes to both console and file
+2025-11-12 10:45:30,124 - __main__ - WARNING - This also goes to both
+2025-11-12 10:45:30,125 - __main__ - ERROR - Error logged to both destinations
+2025-11-12 10:45:30,126 - __main__ - ERROR - Exception with full traceback
+Traceback (most recent call last):
+  File "example.py", line 25, in <module>
+    1 / 0
+ZeroDivisionError: division by zero
+```
+
+**app.log file contents:**
+```
+2025-11-12 10:45:30,122 - __main__ - DEBUG - This only goes to the file
+2025-11-12 10:45:30,123 - __main__ - INFO - This goes to both console and file
+2025-11-12 10:45:30,124 - __main__ - WARNING - This also goes to both
+2025-11-12 10:45:30,125 - __main__ - ERROR - Error logged to both destinations
+2025-11-12 10:45:30,126 - __main__ - ERROR - Exception with full traceback
+Traceback (most recent call last):
+  File "example.py", line 25, in <module>
+    1 / 0
+ZeroDivisionError: division by zero
