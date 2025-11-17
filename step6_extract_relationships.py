@@ -16,21 +16,9 @@ from llama_index.core.program import LLMTextCompletionProgram
 from llama_index.llms.azure_openai import AzureOpenAI
 
 
-# Relationship types for compliance/risk assessment
-RELATIONSHIP_TYPES = [
-    "Owner",
-    "Investor",
-    "Partner",
-    "Shareholder",
-    "Representative",
-    "Beneficiary",
-    "Other relationship"
-]
-
-
 # Pydantic model for relationship extraction
 class RelationshipExtraction(BaseModel):
-    relationship: str = Field(description="Type of relationship between entities")
+    relationship: str = Field(description="Type of relationship between entities (e.g., Owner, Partner, Employee, Customer, Investor, Shareholder, etc.)")
     reasoning: str = Field(description="Reasoning for the relationship classification")
 
 
@@ -71,15 +59,16 @@ def classify_relationship(entity1, description1, entity2, description2, llm):
         llm=llm,
         prompt_template_str="""You are a compliance assistant analyzing entity relationships.
 
-Based on the descriptions below, identify which relationship type from {relationship_types} exists between {entity1} and {entity2}.
+Based on the descriptions below, identify what type of relationship exists between {entity1} and {entity2}.
 
-Relationship types:
-{relationship_list}
+Be specific and descriptive about the relationship type. Examples include but are not limited to:
+Owner, Partner, Employee, Customer, Investor, Shareholder, Beneficiary, Representative,
+Supplier, Client, Director, Manager, Subsidiary, Parent Company, Affiliated Entity, etc.
 
 Entity Descriptions:
 {descriptions}
 
-Classify the relationship and provide reasoning.
+Identify the most accurate relationship type and provide clear reasoning.
 """,
         verbose=False
     )
@@ -87,8 +76,6 @@ Classify the relationship and provide reasoning.
     result = program(
         entity1=entity1,
         entity2=entity2,
-        relationship_types=RELATIONSHIP_TYPES,
-        relationship_list=", ".join(RELATIONSHIP_TYPES),
         descriptions=combined_description
     )
 
@@ -195,14 +182,7 @@ def main():
     # Save all relationships
     with open(output_folder / "entity_relationships.json", "w", encoding="utf-8") as f:
         json.dump(relationships, f, indent=2)
-    print(f"\nSaved: {output_folder}/entity_relationships.json")
-
-    # Filter to keep only meaningful relationships (excluding "Other relationship")
-    filtered_relationships = [r for r in relationships if r["relationship"] != "Other relationship"]
-
-    with open(output_folder / "entity_relationships_filtered.json", "w", encoding="utf-8") as f:
-        json.dump(filtered_relationships, f, indent=2)
-    print(f"Saved: {output_folder}/entity_relationships_filtered.json ({len(filtered_relationships)} meaningful relationships)")
+    print(f"\nSaved: {output_folder}/entity_relationships.json ({len(relationships)} relationships)")
 
     # Create graph structure
     print("\nCreating knowledge graph...")
@@ -227,9 +207,9 @@ def main():
         }
         nodes.append(node)
 
-    # Create edges from filtered relationships
+    # Create edges from ALL relationships
     edges = []
-    for idx, rel in enumerate(filtered_relationships):
+    for idx, rel in enumerate(relationships):
         edge = {
             "data": {
                 "id": current_id + idx,

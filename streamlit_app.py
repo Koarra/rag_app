@@ -592,15 +592,15 @@ def main():
                     with open(outputs_folder / "graph_elements.json", "r") as f:
                         elements = json.load(f)
 
-                    # Style nodes & edges for graph
+                    # Load all relationships to determine unique relationship types
+                    with open(outputs_folder / "entity_relationships.json", "r") as f:
+                        relationships = json.load(f)
+
+                    # Dynamically create edge styles for all unique relationship types found
+                    unique_relationships = set(r["relationship"] for r in relationships)
                     edge_styles = [
-                        EdgeStyle("Owner", caption="label", directed=False),
-                        EdgeStyle("Investor", caption="label", directed=False),
-                        EdgeStyle("Partner", caption="label", directed=False),
-                        EdgeStyle("Shareholder", caption="label", directed=False),
-                        EdgeStyle("Representative", caption="label", directed=False),
-                        EdgeStyle("Beneficiary", caption="label", directed=False),
-                        EdgeStyle("Other relationship", caption="label", directed=False),
+                        EdgeStyle(rel_type, caption="label", directed=False)
+                        for rel_type in unique_relationships
                     ]
 
                     node_styles = [
@@ -620,10 +620,8 @@ def main():
                     st.markdown("---")
                     st.subheader("Relationship Details")
 
-                    with open(outputs_folder / "entity_relationships_filtered.json", "r") as f:
-                        relationships = json.load(f)
-
                     st.write(f"**Total relationships:** {len(relationships)}")
+                    st.write(f"**Unique relationship types:** {len(unique_relationships)}")
 
                     df_rel = pd.DataFrame([
                         {
