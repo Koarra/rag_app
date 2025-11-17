@@ -608,12 +608,25 @@ def main():
                         NodeStyle("FLAGGED", "#2A629A", "name", "flag"),
                     ]
 
+                    # Configure layout with better spacing to prevent overlap
+                    layout_config = {
+                        "name": "cose",
+                        "idealEdgeLength": 200,  # Increase distance between connected nodes
+                        "nodeOverlap": 100,      # Minimum space between nodes
+                        "nodeRepulsion": 8000,   # Increase repulsion force between nodes
+                        "gravity": 0.1,          # Lower gravity for more spread
+                        "numIter": 1000,         # More iterations for better layout
+                        "fit": True,             # Fit the graph to viewport
+                        "padding": 50            # Padding around the graph
+                    }
+
                     st_link_analysis(
                         elements,
                         node_styles=node_styles,
                         edge_styles=edge_styles,
-                        layout="cose",
-                        key="knowledge_graph"
+                        layout=layout_config,
+                        key="knowledge_graph",
+                        height=800  # Increase height for better visibility
                     )
 
                     # Show relationships table below graph
