@@ -89,42 +89,71 @@ def main():
     # File upload section with two-column layout
     st.header("📤 Upload Documents")
 
-    col_upload, col_info = st.columns([1, 1])
+    # Add custom CSS for boxes
+    st.markdown("""
+    <style>
+    .upload-box {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 20px;
+        background-color: #f9f9f9;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        height: 100%;
+    }
+    .info-box {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 20px;
+        background-color: #f0f7ff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        height: 100%;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    col_upload, col_info = st.columns([1, 1], gap="large")
 
     with col_upload:
-        with st.container():
-            st.markdown("##### 📁 Select Files")
-            uploaded_files = st.file_uploader(
-                "Drag and drop or browse",
-                type=["docx", "pdf"],
-                accept_multiple_files=True,
-                help="Upload one or more PDF or DOCX files for analysis",
-                label_visibility="collapsed"
-            )
+        st.markdown('<div class="upload-box">', unsafe_allow_html=True)
+        st.markdown("#### 📁 Select Files")
+        uploaded_files = st.file_uploader(
+            "Drag and drop or browse",
+            type=["docx", "pdf"],
+            accept_multiple_files=True,
+            help="Upload one or more PDF or DOCX files for analysis",
+            label_visibility="collapsed"
+        )
 
-            if uploaded_files:
-                st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
+        if uploaded_files:
+            st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with col_info:
-        with st.container():
-            st.markdown("##### 📋 Document Information")
-            if uploaded_files:
-                # Show document details
-                total_size = sum(f.size for f in uploaded_files)
-                total_size_mb = total_size / (1024 * 1024)
+        st.markdown('<div class="info-box">', unsafe_allow_html=True)
+        st.markdown("#### 📋 Document Information")
+        if uploaded_files:
+            # Show document details
+            total_size = sum(f.size for f in uploaded_files)
+            total_size_mb = total_size / (1024 * 1024)
 
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
                 st.metric("Total Files", len(uploaded_files))
+            with col_m2:
                 st.metric("Total Size", f"{total_size_mb:.2f} MB")
 
-                # Show file list with details
-                with st.expander("📄 View File Details", expanded=True):
-                    for i, file in enumerate(uploaded_files, 1):
-                        file_size_kb = file.size / 1024
-                        file_type = "PDF" if file.name.endswith('.pdf') else "DOCX"
-                        st.text(f"{i}. {file.name}")
-                        st.caption(f"   Type: {file_type} | Size: {file_size_kb:.1f} KB")
-            else:
-                st.info("👈 Upload documents to see details here")
+            st.markdown("---")
+
+            # Show file list with details
+            st.markdown("**📄 File List:**")
+            for i, file in enumerate(uploaded_files, 1):
+                file_size_kb = file.size / 1024
+                file_type = "📕 PDF" if file.name.endswith('.pdf') else "📘 DOCX"
+                st.markdown(f"**{i}.** {file.name}")
+                st.caption(f"   {file_type} • {file_size_kb:.1f} KB")
+        else:
+            st.info("👈 Upload documents to see details here")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     if uploaded_files:
 
@@ -563,15 +592,15 @@ def main():
                     with open(outputs_folder / "graph_elements.json", "r") as f:
                         elements = json.load(f)
 
-                    # Style nodes & edges for graph
+                    # Load all relationships to determine unique relationship types
+                    with open(outputs_folder / "entity_relationships.json", "r") as f:
+                        relationships = json.load(f)
+
+                    # Dynamically create edge styles for all unique relationship types found
+                    unique_relationships = set(r["relationship"] for r in relationships)
                     edge_styles = [
-                        EdgeStyle("Owner", caption="label", directed=False),
-                        EdgeStyle("Investor", caption="label", directed=False),
-                        EdgeStyle("Partner", caption="label", directed=False),
-                        EdgeStyle("Shareholder", caption="label", directed=False),
-                        EdgeStyle("Representative", caption="label", directed=False),
-                        EdgeStyle("Beneficiary", caption="label", directed=False),
-                        EdgeStyle("Other relationship", caption="label", directed=False),
+                        EdgeStyle(rel_type, caption="label", directed=False)
+                        for rel_type in unique_relationships
                     ]
 
                     node_styles = [
@@ -579,22 +608,33 @@ def main():
                         NodeStyle("FLAGGED", "#2A629A", "name", "flag"),
                     ]
 
+                    # Configure layout with better spacing to prevent overlap
+                    layout_config = {
+                        "name": "cose",
+                        "idealEdgeLength": 200,  # Increase distance between connected nodes
+                        "nodeOverlap": 100,      # Minimum space between nodes
+                        "nodeRepulsion": 8000,   # Increase repulsion force between nodes
+                        "gravity": 0.1,          # Lower gravity for more spread
+                        "numIter": 1000,         # More iterations for better layout
+                        "fit": True,             # Fit the graph to viewport
+                        "padding": 50            # Padding around the graph
+                    }
+
                     st_link_analysis(
                         elements,
                         node_styles=node_styles,
                         edge_styles=edge_styles,
-                        layout="cose",
-                        key="knowledge_graph"
+                        layout=layout_config,
+                        key="knowledge_graph",
+                        height=800  # Increase height for better visibility
                     )
 
                     # Show relationships table below graph
                     st.markdown("---")
                     st.subheader("Relationship Details")
 
-                    with open(outputs_folder / "entity_relationships_filtered.json", "r") as f:
-                        relationships = json.load(f)
-
                     st.write(f"**Total relationships:** {len(relationships)}")
+                    st.write(f"**Unique relationship types:** {len(unique_relationships)}")
 
                     df_rel = pd.DataFrame([
                         {

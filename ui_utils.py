@@ -145,21 +145,26 @@ def define_html(filtered_df, cols_to_exclude, col_boolean_list):
 
 
 def show_beautiful_progress(progress_container, percentage, elapsed_time):
-    """Display a simple progress UI using native Streamlit components"""
+    """Display a compact progress UI with green styling"""
     minutes = int(elapsed_time // 60)
     seconds = int(elapsed_time % 60)
 
     with progress_container.container():
-        # Title
-        st.markdown("### 🔄 Processing Your Documents")
-
-        # Percentage as metric
-        col1, col2, col3 = st.columns([1, 2, 1])
+        # Compact title and percentage on same line
+        col1, col2, col3 = st.columns([2, 1, 2])
+        with col1:
+            st.markdown("**🔄 Processing**")
         with col2:
-            st.metric(label="Progress", value=f"{percentage}%", delta=None)
+            st.markdown(f"<h3 style='text-align: center; color: #28a745; margin: 0;'>{percentage}%</h3>", unsafe_allow_html=True)
+        with col3:
+            st.markdown(f"<p style='text-align: right; margin: 0; font-size: 14px;'>⏱️ {minutes:02d}:{seconds:02d}</p>", unsafe_allow_html=True)
 
-        # Progress bar
+        # Green progress bar
+        st.markdown("""
+        <style>
+        .stProgress > div > div > div > div {
+            background-color: #28a745;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         st.progress(percentage / 100.0)
-
-        # Timer
-        st.caption(f"⏱️ Elapsed time: {minutes:02d}:{seconds:02d}")
