@@ -626,7 +626,7 @@ def main():
                         edge_styles=edge_styles,
                         layout=layout_config,
                         key="knowledge_graph",
-                        height=800  # Increase height for better visibility
+                        height=1200  # Extended height for better visibility
                     )
 
                     # Show relationships table below graph
