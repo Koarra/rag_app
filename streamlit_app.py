@@ -177,8 +177,13 @@ def main():
     with col_save:
         st.markdown("**Save Current Session:**")
 
-        # Only show save if there's something to save
-        if st.session_state.get("results_ready", False) or st.session_state.get("outputs_folder"):
+        # Check if we have uploaded files variable in scope (will be defined later)
+        # For now, check session state
+        current_upload_files = st.session_state.get("current_upload_files", [])
+        has_results = st.session_state.get("results_ready", False)
+        has_output = st.session_state.get("outputs_folder") is not None
+
+        if len(current_upload_files) > 0 or has_results or has_output:
             session_name_input = st.text_input(
                 "Session name",
                 placeholder="Enter session name...",
@@ -188,19 +193,30 @@ def main():
             if st.button("💾 Save Session", key="save_btn"):
                 if session_name_input:
                     output_folder = st.session_state.get("outputs_folder")
+                    # If files just uploaded but not processed
+                    if not output_folder and len(current_upload_files) > 0:
+                        # Calculate folder from uploaded files
+                        if len(current_upload_files) == 1:
+                            name_article = Path(current_upload_files[0]).stem
+                            folder_name = transform_string(name_article)
+                        else:
+                            filenames = sorted([transform_string(Path(f).stem) for f in current_upload_files])
+                            unique_string = "_".join(filenames)
+                            folder_hash = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:16]
+                            folder_name = f"batch_{folder_hash}"
+                        output_folder = ASSET_FOLDER / folder_name / "outputs"
+
                     if output_folder:
-                        # Get file names from outputs folder parent
                         parent_folder = Path(output_folder).parent
                         file_names = [f.name for f in parent_folder.glob("*") if f.is_file()]
-
                         session_file = save_session(session_name_input, output_folder, file_names)
                         st.success(f"✅ Session saved: {session_name_input}")
                     else:
-                        st.warning("No processing results to save")
+                        st.warning("No data to save")
                 else:
                     st.warning("Please enter a session name")
         else:
-            st.info("Process documents first to save a session")
+            st.info("Upload documents first to save a session")
 
     st.markdown("---")
 
@@ -252,6 +268,8 @@ def main():
 
         if uploaded_files:
             st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
+            # Store filenames in session state for save functionality
+            st.session_state.current_upload_files = [f.name for f in uploaded_files]
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_info:
@@ -281,36 +299,41 @@ def main():
             st.info("👈 Upload documents to see details here")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    if uploaded_files:
+    # Check if we should process/display: either files uploaded or session loaded
+    has_loaded_session = st.session_state.get("loaded_session") is not None
 
-        # Create folder structure
-        if len(uploaded_files) == 1:
-            # Single file: use filename as folder
-            name_article, file_ext = Path(uploaded_files[0].name).stem, Path(uploaded_files[0].name).suffix
-            folder_name = transform_string(name_article)
-        else:
-            # Multiple files: create hash-based folder
-            filenames = sorted([transform_string(Path(f.name).stem) for f in uploaded_files])
-            unique_string = "_".join(filenames)
-            folder_hash = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:16]
-            folder_name = f"batch_{folder_hash}"
+    if uploaded_files or has_loaded_session:
 
-        # Create output folder
-        output_folder = ASSET_FOLDER / folder_name
-        output_folder.mkdir(parents=True, exist_ok=True)
+        # Only process uploaded files if they exist (not for loaded sessions)
+        if uploaded_files:
+            # Create folder structure
+            if len(uploaded_files) == 1:
+                # Single file: use filename as folder
+                name_article, file_ext = Path(uploaded_files[0].name).stem, Path(uploaded_files[0].name).suffix
+                folder_name = transform_string(name_article)
+            else:
+                # Multiple files: create hash-based folder
+                filenames = sorted([transform_string(Path(f.name).stem) for f in uploaded_files])
+                unique_string = "_".join(filenames)
+                folder_hash = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:16]
+                folder_name = f"batch_{folder_hash}"
 
-        # Save uploaded files
-        file_paths = []
-        for uploaded_file in uploaded_files:
-            name_article, file_ext = Path(uploaded_file.name).stem, Path(uploaded_file.name).suffix
-            article_cleaned = transform_string(name_article)
-            file_path = output_folder / f"{article_cleaned}{file_ext}"
+            # Create output folder
+            output_folder = ASSET_FOLDER / folder_name
+            output_folder.mkdir(parents=True, exist_ok=True)
 
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            file_paths.append(file_path)
+            # Save uploaded files
+            file_paths = []
+            for uploaded_file in uploaded_files:
+                name_article, file_ext = Path(uploaded_file.name).stem, Path(uploaded_file.name).suffix
+                article_cleaned = transform_string(name_article)
+                file_path = output_folder / f"{article_cleaned}{file_ext}"
 
-        st.markdown("---")
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                file_paths.append(file_path)
+
+            st.markdown("---")
 
         # Initialize session state for results
         if 'results_ready' not in st.session_state:
@@ -318,8 +341,8 @@ def main():
         if 'outputs_folder' not in st.session_state:
             st.session_state.outputs_folder = None
 
-        # Process documents button
-        if st.button("🚀 Process Documents", type="primary"):
+        # Process documents button - only show if files were uploaded
+        if uploaded_files and st.button("🚀 Process Documents", type="primary"):
             # Track processing time
             import time
             start_time = time.time()
