@@ -12,6 +12,88 @@ The performance testing system:
 - Saves timestamped outputs for debugging
 - **Stores all test data outside the repository** to keep the codebase clean
 
+## Database Architecture
+
+### Main Application Database Usage
+
+The Article Detective application uses **dual database storage** for entity analysis results:
+
+#### SQLite Database
+- **Purpose**: Primary relational database for storing entity analysis results
+- **File**: `entities.db` (stored in session folder)
+- **Schema**:
+  ```sql
+  CREATE TABLE entities (
+      entity TEXT,                    -- Entity name
+      summary TEXT,                   -- Entity description
+      money_laundering BOOLEAN,       -- Crime flag
+      sanctions_evasion BOOLEAN,      -- Crime flag
+      terrorist_financing BOOLEAN,    -- Crime flag
+      bribery BOOLEAN,                -- Crime flag
+      corruption BOOLEAN,             -- Crime flag
+      embezzlement BOOLEAN,           -- Crime flag
+      fraud BOOLEAN,                  -- Crime flag
+      tax_evasion BOOLEAN,            -- Crime flag
+      insider_trading BOOLEAN,        -- Crime flag
+      market_manipulation BOOLEAN,    -- Crime flag
+      ponzi_scheme BOOLEAN,           -- Crime flag
+      pyramid_scheme BOOLEAN,         -- Crime flag
+      identity_theft BOOLEAN,         -- Crime flag
+      cybercrime BOOLEAN,             -- Crime flag
+      human_trafficking BOOLEAN,      -- Crime flag
+      timestamp TEXT,                 -- Record creation time
+      comments TEXT,                  -- User notes
+      flagged BOOLEAN,                -- Overall flag status
+      session_id TEXT,                -- Session identifier
+      PRIMARY KEY(entity, timestamp)  -- Composite key
+  )
+  ```
+
+#### DuckDB Database
+- **Purpose**: Analytical database optimized for querying and history tracking
+- **File**: `entities.duckdb` (stored in session folder)
+- **Schema**: Same as SQLite, but with `TIMESTAMP` type for timestamp field
+- **Use Cases**:
+  - Fast analytical queries across large datasets
+  - Time-series analysis of entity changes
+  - Export to Parquet/CSV for data science workflows
+
+### Key Features
+
+1. **Version History**: Each entity update creates a new row with timestamp, allowing full audit trail
+2. **Change Detection**: Only inserts new rows when crime flags or comments change
+3. **Session Tracking**: Links all entities to a session_id for batch operations
+4. **Dual Storage Benefits**:
+   - SQLite: ACID compliance, reliable storage, easy backups
+   - DuckDB: Fast analytics, columnar storage, better for large-scale queries
+
+### Database Functions (database_utils.py)
+
+- `save_to_database()`: Saves entity DataFrame to both SQLite and DuckDB
+- `create_dataframe_from_results()`: Converts JSON analysis results to database-ready DataFrame
+- `get_entity_history()`: Retrieves complete change history for an entity
+
+### Data Flow
+
+1. **Document Processing** (steps 1-4): JSON files are created
+2. **Risk Analysis** (step5): `risk_assessment.json` is created with flagged entities
+3. **Database Storage** (Streamlit UI):
+   - User reviews the Activities Table
+   - When "Save Changes" is clicked, data is saved to both SQLite and DuckDB
+   - Each save creates a new timestamped record for changed entities
+4. **Query & Analysis**: Users can query DuckDB for historical analysis and trends
+
+### Performance Testing Data Storage
+
+**Note:** The performance testing framework itself does **NOT** use SQL databases. It stores data in simple file formats:
+
+- **Test articles**: File-based (original documents + JSON outputs from steps 1-4)
+- **Reference outputs**: JSON files (`article_name.json`)
+- **Daily outputs**: JSON files with timestamps
+- **Test logs**: JSONL (JSON Lines) format for append-only logging
+
+This design keeps performance testing simple, portable, and easy to version control without database dependencies.
+
 ## Directory Structure
 
 **Repository structure (code only):**
