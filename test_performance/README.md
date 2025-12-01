@@ -10,61 +10,87 @@ The performance testing system:
 - Calculates similarity metrics using Jaccard similarity
 - Logs results and determines pass/fail based on thresholds
 - Saves timestamped outputs for debugging
+- **Stores all test data outside the repository** to keep the codebase clean
 
 ## Directory Structure
 
+**Repository structure (code only):**
 ```
 test_performance/
-├── data/
-│   ├── test_articles/          # Test article folders with entity outputs
-│   │   ├── article1/
-│   │   │   └── outputs/        # Contains entity data files
-│   │   ├── article2/
-│   │   └── ...
-│   ├── reference_outputs/      # Reference "golden" JSON files
-│   │   ├── article1.json
-│   │   ├── article2.json
-│   │   └── ...
-│   └── daily_outputs/          # Timestamped current run outputs
-├── logs/
-│   └── test_results.jsonl     # Append-only test result log
 ├── compare_outputs.py          # Comparison logic
 ├── config.py                   # Configuration and thresholds
 ├── run_test.py                 # Main test runner
+├── __init__.py                 # Package initialization
 └── README.md                   # This file
 ```
 
+**External test data structure (default: `/home/user/rag_app_test_data/`):**
+```
+rag_app_test_data/              # Outside repository
+├── test_articles/              # Test article folders with entity outputs
+│   ├── article1/
+│   │   └── outputs/            # Contains entity data files
+│   ├── article2/
+│   └── ...
+├── reference_outputs/          # Reference "golden" JSON files
+│   ├── article1.json
+│   ├── article2.json
+│   └── ...
+├── daily_outputs/              # Timestamped current run outputs
+│   └── article1_2025-12-01T10-30-45.json
+└── logs/
+    └── test_results.jsonl      # Append-only test result log
+```
+
+**Note:** The test data location can be customized via the `RAG_APP_TEST_DATA_PATH` environment variable.
+
 ## Setup
 
-### 1. Prepare Test Articles
+### 1. Configure Test Data Location (Optional)
 
-Place your test articles in `data/test_articles/`. Each article should have the same structure as a processed article:
+By default, test data is stored in `/home/user/rag_app_test_data/`. To use a different location:
+
+```bash
+export RAG_APP_TEST_DATA_PATH="/your/custom/path"
+```
+
+Add this to your `~/.bashrc` or `~/.zshrc` to make it permanent.
+
+### 2. Prepare Test Articles
+
+Place your test articles in the test data directory. Each article should have the same structure as a processed article:
 
 ```
+# Default location: /home/user/rag_app_test_data/test_articles/
 test_articles/article1/outputs/
 ├── entities.json                           # Or whatever entity files step5 needs
 ├── dict_unique_grouped_entity_summary.json
 └── ... (other files from steps 1-4)
 ```
 
-### 2. Create Reference Outputs
+The directories will be created automatically when you run the tests for the first time.
+
+### 3. Create Reference Outputs
 
 Run step5 manually on each test article to create reference outputs when you're confident the results are correct:
 
 ```bash
+# Set the test data path (if using custom location)
+export RAG_APP_TEST_DATA_PATH="/your/custom/path"
+
 # Process article1
-python step5_analyze_risks.py test_performance/data/test_articles/article1/outputs
+python step5_analyze_risks.py /home/user/rag_app_test_data/test_articles/article1/outputs
 
 # Copy the generated risk_assessment.json as reference
-cp test_performance/data/test_articles/article1/outputs/risk_assessment.json \
-   test_performance/data/reference_outputs/article1.json
+cp /home/user/rag_app_test_data/test_articles/article1/outputs/risk_assessment.json \
+   /home/user/rag_app_test_data/reference_outputs/article1.json
 ```
 
 Repeat for all test articles (article2, article3, article4, article5).
 
-### 3. Configure Test Articles
+### 4. Configure Test Articles
 
-Edit `config.py` to list your test articles:
+Edit `test_performance/config.py` to list your test articles:
 
 ```python
 TEST_ARTICLES = [
@@ -108,7 +134,7 @@ For each article:
 ```
 Processing article1...
   Running step5 for article1...
-  Saved current output to: data/daily_outputs/article1_2025-12-01T10-30-45.json
+  Saved current output to: /home/user/rag_app_test_data/daily_outputs/article1_2025-12-01T10-30-45.json
   ✓ Entity similarity: 85.00%
   ✓ Crime similarity: 90.00%
     - Matched entities: 17
@@ -128,7 +154,7 @@ Average crime similarity: 85.20% (threshold: 75%)
 
 ✅ TEST PASSED - All thresholds met!
 
-Results logged to: logs/test_results.jsonl
+Results logged to: /home/user/rag_app_test_data/logs/test_results.jsonl
 ============================================================
 ```
 
@@ -139,7 +165,26 @@ Results logged to: logs/test_results.jsonl
 
 ## Configuration
 
-Edit `config.py` to adjust:
+### Test Data Location
+
+The test data location is configured via environment variable or uses the default:
+
+```python
+# In config.py
+TEST_DATA_ROOT = Path(os.getenv(
+    'RAG_APP_TEST_DATA_PATH',
+    '/home/user/rag_app_test_data'  # Default
+))
+```
+
+To use a custom location:
+```bash
+export RAG_APP_TEST_DATA_PATH="/path/to/your/test/data"
+```
+
+### Similarity Thresholds
+
+Edit `test_performance/config.py` to adjust thresholds:
 
 ```python
 # Similarity thresholds
@@ -195,10 +240,29 @@ Results are logged to `logs/test_results.jsonl` (one JSON object per line):
 ## Troubleshooting
 
 ### "Folder not found" Error
-Ensure test articles exist in `data/test_articles/article_name/outputs/`
+Ensure test articles exist in the test data directory:
+```bash
+# Default location
+ls /home/user/rag_app_test_data/test_articles/article1/outputs/
+
+# Or check your custom location
+echo $RAG_APP_TEST_DATA_PATH
+ls $RAG_APP_TEST_DATA_PATH/test_articles/article1/outputs/
+```
 
 ### "Reference not found" Error
-Create reference outputs by running step5 manually and copying the `risk_assessment.json` file
+Create reference outputs by running step5 manually and copying the `risk_assessment.json` file to the reference_outputs directory. Make sure the environment variable is set if using a custom location.
+
+### Path Configuration Issues
+When you run the test, it will print the configured paths:
+```
+Performance test data location: /home/user/rag_app_test_data
+  - Test articles: /home/user/rag_app_test_data/test_articles
+  - Reference outputs: /home/user/rag_app_test_data/reference_outputs
+  - Daily outputs: /home/user/rag_app_test_data/daily_outputs
+  - Logs: /home/user/rag_app_test_data/logs
+```
+Verify these paths are correct.
 
 ### Low Similarity Scores
 - Check if LLM prompts have changed
@@ -212,10 +276,14 @@ Add to your CI pipeline:
 
 ```yaml
 - name: Run Performance Tests
+  env:
+    RAG_APP_TEST_DATA_PATH: /path/to/test/data  # Set your test data location
   run: python test_performance/run_test.py
 ```
 
 Tests will fail (exit code 1) if similarity drops below thresholds, preventing regressions.
+
+**Note:** Make sure your CI environment has access to the test data directory, or configure it to use a CI-specific location.
 
 ## Files Description
 
