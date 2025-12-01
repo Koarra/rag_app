@@ -52,6 +52,64 @@ def transform_string(input_string):
     return cleaned.lower()
 
 
+def save_session(session_name, output_folder, file_names):
+    """Save current session to disk"""
+    sessions_folder = ASSET_FOLDER / "sessions"
+    sessions_folder.mkdir(parents=True, exist_ok=True)
+
+    session_file = sessions_folder / f"{transform_string(session_name)}.json"
+
+    session_data = {
+        "session_name": session_name,
+        "timestamp": datetime.now().isoformat(),
+        "output_folder": str(output_folder),
+        "file_names": file_names,
+        "results_ready": st.session_state.get("results_ready", False)
+    }
+
+    with open(session_file, "w") as f:
+        json.dump(session_data, f, indent=2)
+
+    return session_file
+
+
+def load_session(session_name):
+    """Load a saved session from disk"""
+    sessions_folder = ASSET_FOLDER / "sessions"
+    session_file = sessions_folder / f"{transform_string(session_name)}.json"
+
+    if not session_file.exists():
+        return None
+
+    with open(session_file, "r") as f:
+        session_data = json.load(f)
+
+    return session_data
+
+
+def get_available_sessions():
+    """Get list of available saved sessions"""
+    sessions_folder = ASSET_FOLDER / "sessions"
+    sessions_folder.mkdir(parents=True, exist_ok=True)
+
+    sessions = []
+    for session_file in sessions_folder.glob("*.json"):
+        try:
+            with open(session_file, "r") as f:
+                data = json.load(f)
+            sessions.append({
+                "name": data.get("session_name", session_file.stem),
+                "timestamp": data.get("timestamp", "Unknown"),
+                "file": session_file.stem
+            })
+        except Exception:
+            continue
+
+    # Sort by timestamp, newest first
+    sessions.sort(key=lambda x: x["timestamp"], reverse=True)
+    return sessions
+
+
 def run_step(script_name, args):
     """Run a step script with output visible in terminal"""
     try:
@@ -77,6 +135,90 @@ def main():
     )
 
     st.title("🔍 Article Detective")
+
+    # Session Management Section
+    st.markdown("### 💾 Session Management")
+
+    # Initialize session state
+    if 'loaded_session' not in st.session_state:
+        st.session_state.loaded_session = None
+
+    col_load, col_save = st.columns([1, 1])
+
+    with col_load:
+        st.markdown("**Load Existing Session:**")
+        available_sessions = get_available_sessions()
+
+        if available_sessions:
+            session_options = [f"{s['name']} ({s['timestamp'][:10]})" for s in available_sessions]
+            selected_session_idx = st.selectbox(
+                "Select a session to load",
+                range(len(session_options)),
+                format_func=lambda i: session_options[i],
+                key="session_selector"
+            )
+
+            if st.button("🔄 Load Session", key="load_btn"):
+                session_name = available_sessions[selected_session_idx]["file"]
+                session_data = load_session(session_name)
+
+                if session_data:
+                    # Load session into state
+                    st.session_state.loaded_session = session_data
+                    st.session_state.outputs_folder = Path(session_data["output_folder"])
+                    st.session_state.results_ready = session_data.get("results_ready", False)
+                    st.success(f"✅ Loaded session: {session_data['session_name']}")
+                    st.rerun()
+                else:
+                    st.error("Failed to load session")
+        else:
+            st.info("No saved sessions available")
+
+    with col_save:
+        st.markdown("**Save Current Session:**")
+
+        # Check if we have uploaded files variable in scope (will be defined later)
+        # For now, check session state
+        current_upload_files = st.session_state.get("current_upload_files", [])
+        has_results = st.session_state.get("results_ready", False)
+        has_output = st.session_state.get("outputs_folder") is not None
+
+        if len(current_upload_files) > 0 or has_results or has_output:
+            session_name_input = st.text_input(
+                "Session name",
+                placeholder="Enter session name...",
+                key="session_name_input"
+            )
+
+            if st.button("💾 Save Session", key="save_btn"):
+                if session_name_input:
+                    output_folder = st.session_state.get("outputs_folder")
+                    # If files just uploaded but not processed
+                    if not output_folder and len(current_upload_files) > 0:
+                        # Calculate folder from uploaded files
+                        if len(current_upload_files) == 1:
+                            name_article = Path(current_upload_files[0]).stem
+                            folder_name = transform_string(name_article)
+                        else:
+                            filenames = sorted([transform_string(Path(f).stem) for f in current_upload_files])
+                            unique_string = "_".join(filenames)
+                            folder_hash = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:16]
+                            folder_name = f"batch_{folder_hash}"
+                        output_folder = ASSET_FOLDER / folder_name / "outputs"
+
+                    if output_folder:
+                        parent_folder = Path(output_folder).parent
+                        file_names = [f.name for f in parent_folder.glob("*") if f.is_file()]
+                        session_file = save_session(session_name_input, output_folder, file_names)
+                        st.success(f"✅ Session saved: {session_name_input}")
+                    else:
+                        st.warning("No data to save")
+                else:
+                    st.warning("Please enter a session name")
+        else:
+            st.info("Upload documents first to save a session")
+
+    st.markdown("---")
 
     # Show environment info
     if "DOMINO_DATASETS_DIR" in os.environ:
@@ -126,6 +268,8 @@ def main():
 
         if uploaded_files:
             st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
+            # Store filenames in session state for save functionality
+            st.session_state.current_upload_files = [f.name for f in uploaded_files]
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_info:
@@ -155,36 +299,41 @@ def main():
             st.info("👈 Upload documents to see details here")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    if uploaded_files:
+    # Check if we should process/display: either files uploaded or session loaded
+    has_loaded_session = st.session_state.get("loaded_session") is not None
 
-        # Create folder structure
-        if len(uploaded_files) == 1:
-            # Single file: use filename as folder
-            name_article, file_ext = Path(uploaded_files[0].name).stem, Path(uploaded_files[0].name).suffix
-            folder_name = transform_string(name_article)
-        else:
-            # Multiple files: create hash-based folder
-            filenames = sorted([transform_string(Path(f.name).stem) for f in uploaded_files])
-            unique_string = "_".join(filenames)
-            folder_hash = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:16]
-            folder_name = f"batch_{folder_hash}"
+    if uploaded_files or has_loaded_session:
 
-        # Create output folder
-        output_folder = ASSET_FOLDER / folder_name
-        output_folder.mkdir(parents=True, exist_ok=True)
+        # Only process uploaded files if they exist (not for loaded sessions)
+        if uploaded_files:
+            # Create folder structure
+            if len(uploaded_files) == 1:
+                # Single file: use filename as folder
+                name_article, file_ext = Path(uploaded_files[0].name).stem, Path(uploaded_files[0].name).suffix
+                folder_name = transform_string(name_article)
+            else:
+                # Multiple files: create hash-based folder
+                filenames = sorted([transform_string(Path(f.name).stem) for f in uploaded_files])
+                unique_string = "_".join(filenames)
+                folder_hash = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:16]
+                folder_name = f"batch_{folder_hash}"
 
-        # Save uploaded files
-        file_paths = []
-        for uploaded_file in uploaded_files:
-            name_article, file_ext = Path(uploaded_file.name).stem, Path(uploaded_file.name).suffix
-            article_cleaned = transform_string(name_article)
-            file_path = output_folder / f"{article_cleaned}{file_ext}"
+            # Create output folder
+            output_folder = ASSET_FOLDER / folder_name
+            output_folder.mkdir(parents=True, exist_ok=True)
 
-            with open(file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            file_paths.append(file_path)
+            # Save uploaded files
+            file_paths = []
+            for uploaded_file in uploaded_files:
+                name_article, file_ext = Path(uploaded_file.name).stem, Path(uploaded_file.name).suffix
+                article_cleaned = transform_string(name_article)
+                file_path = output_folder / f"{article_cleaned}{file_ext}"
 
-        st.markdown("---")
+                with open(file_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                file_paths.append(file_path)
+
+            st.markdown("---")
 
         # Initialize session state for results
         if 'results_ready' not in st.session_state:
@@ -192,8 +341,8 @@ def main():
         if 'outputs_folder' not in st.session_state:
             st.session_state.outputs_folder = None
 
-        # Process documents button
-        if st.button("🚀 Process Documents", type="primary"):
+        # Process documents button - only show if files were uploaded
+        if uploaded_files and st.button("🚀 Process Documents", type="primary"):
             # Track processing time
             import time
             start_time = time.time()
@@ -626,7 +775,7 @@ def main():
                         edge_styles=edge_styles,
                         layout=layout_config,
                         key="knowledge_graph",
-                        height=800  # Increase height for better visibility
+                        height=1200  # Extended height for better visibility
                     )
 
                     # Show relationships table below graph
