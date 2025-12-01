@@ -77,11 +77,274 @@ The Article Detective application uses **dual database storage** for entity anal
 
 1. **Document Processing** (steps 1-4): JSON files are created
 2. **Risk Analysis** (step5): `risk_assessment.json` is created with flagged entities
-3. **Database Storage** (Streamlit UI):
-   - User reviews the Activities Table
-   - When "Save Changes" is clicked, data is saved to both SQLite and DuckDB
+3. **Interactive Review** (Streamlit UI - Activities Table):
+   - User views the Activities Table with flagged criminal entities
+   - User can edit the table: modify crime flags, change summaries, unflag entities
+   - Changes are saved to session state (`st.session_state.edited_activities_df`)
+   - These edits persist during the session but are not yet in the database
+4. **Database Storage** (Streamlit UI - Save to Database section):
+   - User can add comments to specific entities
+   - When "Save to Database" is clicked, data is saved to both SQLite and DuckDB
    - Each save creates a new timestamped record for changed entities
-4. **Query & Analysis**: Users can query DuckDB for historical analysis and trends
+5. **Query & Analysis**: Users can query DuckDB for historical analysis and trends
+
+## User Feedback Loop
+
+### Overview
+
+The application provides an interactive feedback loop where users can review and correct the AI's entity flagging decisions. This human-in-the-loop approach ensures accuracy and allows tracking of AI performance over time.
+
+### Workflow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Step 1-4: Document Processing                                   │
+│ └─> JSON files created (entities, summaries, relationships)     │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Step 5: AI Risk Analysis                                        │
+│ └─> risk_assessment.json (15 crime categories flagged)          │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Streamlit UI: Activities Table (Interactive Review)             │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ [View Mode] Display flagged entities                      │ │
+│  │   ├─ Entity Name | Summary | Crime Flags | Flagged       │ │
+│  │   └─ Only shows flagged entities, active crime columns   │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                         │                                        │
+│                         │ User clicks "Edit Table"               │
+│                         ▼                                        │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ [Edit Mode] Modify any cell                               │ │
+│  │   ├─ Toggle crime checkboxes                             │ │
+│  │   ├─ Unflag false positives                              │ │
+│  │   ├─ Edit summaries                                      │ │
+│  │   └─ Add comments                                        │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                         │                                        │
+│                         │ User clicks "Save Changes"             │
+│                         ▼                                        │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ Session State Updated                                     │ │
+│  │   └─> st.session_state.edited_activities_df              │ │
+│  │   └─> Changes persist during session                     │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     │ User navigates to "Save to Database"
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Database Persistence Section                                    │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ 1. Add optional comments to entities                      │ │
+│  │ 2. Click "Save to Database"                               │ │
+│  │ 3. save_to_database() function:                           │ │
+│  │    ├─ Creates DataFrame from current data + comments     │ │
+│  │    ├─ Checks for changes vs last DB entry                │ │
+│  │    ├─ Inserts new timestamped rows (if changed)          │ │
+│  │    └─ Saves to SQLite + DuckDB                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Databases (Dual Storage)                                        │
+│  ├─ SQLite: entities.db (ACID, reliable, easy backups)         │
+│  └─ DuckDB: entities.duckdb (analytics, time-series queries)   │
+│                                                                  │
+│  Each entity row contains:                                      │
+│    ├─ entity, summary, 15 crime flags, timestamp               │
+│    ├─ comments, flagged status, session_id                     │
+│    └─ PRIMARY KEY (entity, timestamp) for version history      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### How Table Editing Works
+
+#### 1. Initial Display
+- After step5 completes, the **Activities Table** shows all entities flagged by the AI
+- Each row shows: Entity name, Summary, Crime flags (checkboxes), Comments, and Flagged status
+- Only columns with at least one flagged crime are displayed
+
+#### 2. Edit Mode
+Users can switch to Edit Mode by clicking **✏️ Edit Table**:
+- All cells become editable (except Entity name which is read-only)
+- Users can:
+  - **Toggle crime flags**: Check/uncheck any of the 15 crime categories
+  - **Unflag entities**: Uncheck the "Flagged" column to remove false positives
+  - **Edit summaries**: Modify entity descriptions
+  - **Add comments**: Add notes or reasoning for changes
+
+#### 3. Save Changes
+When **💾 Save Changes** is clicked:
+- Edits are saved to Streamlit session state (`st.session_state.edited_activities_df`)
+- Changes persist during the current session
+- The table view updates to reflect modifications
+- Unflagged entities disappear from the table (filter: `Flagged == True`)
+- A success toast notification appears
+
+#### 4. Database Persistence
+To save edits permanently to the database:
+- Go to the **"Save Results to Database"** section
+- Optionally add comments to specific entities
+- Click **💾 Save to Database**
+- This triggers `save_to_database()` which:
+  - Creates a DataFrame with current entity data and crime flags
+  - Compares against the last database entry for each entity
+  - Only inserts new rows if crime flags or comments have changed
+  - Saves to both SQLite (ACID compliance) and DuckDB (analytics)
+  - Creates timestamped records for audit trail
+
+#### 5. Version History
+Each database save creates a new timestamped record:
+```sql
+-- Example: Entity history over time
+SELECT entity, timestamp, money_laundering, fraud, comments
+FROM entities
+WHERE entity = 'Acme Corp'
+ORDER BY timestamp DESC;
+```
+
+This allows users to:
+- Track how entity classifications change over time
+- See who made changes (via session_id)
+- Audit AI decisions vs human corrections
+- Analyze patterns in false positives/negatives
+
+### Key Benefits of the Feedback Loop
+
+1. **Human-in-the-Loop**: AI makes initial flagging, humans review and correct
+2. **Iterative Improvement**: Track AI accuracy over time via version history
+3. **Audit Trail**: Complete history of all changes with timestamps
+4. **Flexible Editing**: Change crime flags, summaries, comments all in one interface
+5. **Session Persistence**: Edits persist during work session before database save
+6. **Dual Storage**: Both ACID-compliant (SQLite) and analytics-optimized (DuckDB) storage
+
+### Practical Example: Correcting AI Decisions
+
+**Scenario**: AI flagged "ABC Consulting" for money laundering, but analyst determines it's a false positive.
+
+**Step-by-step correction:**
+
+1. **View the flagged entity** in Activities Table:
+   ```
+   Entity: ABC Consulting
+   Summary: Professional services firm based in Dubai
+   Money Laundering: ✅ (checked)
+   Fraud: ❌
+   Flagged: ✅
+   ```
+
+2. **Click "Edit Table"** to enter edit mode
+
+3. **Make corrections**:
+   - Uncheck "Money Laundering" box
+   - Uncheck "Flagged" box (to remove from flagged list)
+   - Add comment: "False positive - legitimate consulting firm"
+
+4. **Click "Save Changes"** - entity disappears from Activities Table (no longer flagged)
+
+5. **Navigate to "Save to Database"** section
+
+6. **Click "Save to Database"** - changes are now permanently stored with timestamp
+
+7. **Query history** to see the correction:
+   ```sql
+   SELECT entity, timestamp, money_laundering, flagged, comments
+   FROM entities
+   WHERE entity = 'ABC Consulting'
+   ORDER BY timestamp DESC;
+
+   -- Result:
+   -- Row 1: 2025-12-01 10:30 | FALSE | FALSE | "False positive - legitimate consulting firm"
+   -- Row 2: 2025-12-01 10:15 | TRUE  | TRUE  | ""  (original AI decision)
+   ```
+
+### Use Cases for Version History
+
+**1. Track AI Accuracy Over Time**
+```sql
+-- Count false positives by crime type per session
+SELECT
+    session_id,
+    SUM(CASE WHEN money_laundering = FALSE AND comments LIKE '%false positive%' THEN 1 ELSE 0 END) as ml_false_positives,
+    SUM(CASE WHEN fraud = FALSE AND comments LIKE '%false positive%' THEN 1 ELSE 0 END) as fraud_false_positives
+FROM entities
+GROUP BY session_id;
+```
+
+**2. Audit Analyst Corrections**
+```sql
+-- Find all entities modified after initial flagging
+SELECT entity, COUNT(*) as revision_count
+FROM entities
+GROUP BY entity
+HAVING COUNT(*) > 1
+ORDER BY revision_count DESC;
+```
+
+**3. Generate Training Data for Model Improvement**
+```sql
+-- Export corrected entities to retrain AI model
+SELECT entity, summary, money_laundering, fraud, terrorist_financing, comments
+FROM entities
+WHERE timestamp = (SELECT MAX(timestamp) FROM entities e2 WHERE e2.entity = entities.entity)
+  AND comments != ''
+```
+
+**4. Compliance Reporting**
+```sql
+-- Generate report of all flagged entities with final status
+SELECT
+    entity,
+    summary,
+    money_laundering OR fraud OR terrorist_financing as has_crime_flag,
+    comments,
+    MAX(timestamp) as last_updated
+FROM entities
+GROUP BY entity
+HAVING has_crime_flag = TRUE
+```
+
+### Best Practices for Using the Feedback Loop
+
+1. **Review All Flagged Entities**: Don't skip reviewing - AI makes mistakes
+2. **Add Meaningful Comments**: Explain why you changed a flag (helps future analysis)
+3. **Save to Database Regularly**: Don't lose work - save after each review session
+4. **Use Session Management**: Save sessions with descriptive names for later reference
+5. **Query History Periodically**: Use DuckDB to analyze patterns and improve AI prompts
+6. **Export for Retraining**: Use corrected data to fine-tune the LLM for better accuracy
+7. **Reset Only When Needed**: "Reset Table" discards all edits - use sparingly
+8. **Filter Columns**: Use the column selector to focus on relevant crime categories
+
+### Technical Implementation Details
+
+**Session State Management** (streamlit_app.py:575-650):
+- `st.session_state.edited_activities_df`: Stores current table state
+- `st.session_state.edit_mode_table`: Toggle between view/edit mode
+- `st.session_state.temp_edited_df`: Temporary storage during editing
+- `st.session_state.entity_comments`: User-added comments per entity
+
+**Database Save Logic** (database_utils.py:save_to_database):
+```python
+# Change detection algorithm
+for each entity:
+    1. Query last entry from database
+    2. Compare crime flags and comments
+    3. If changed → insert new timestamped row
+    4. If unchanged → skip (no duplicate)
+```
+
+**Why Dual Databases?**
+- **SQLite**: ACID compliance ensures data integrity, simple backups, universally compatible
+- **DuckDB**: Columnar storage for fast analytics, native Parquet export, optimized for OLAP queries
 
 ### Performance Testing Data Storage
 
