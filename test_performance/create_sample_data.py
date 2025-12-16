@@ -13,7 +13,7 @@ import test_performance.config as config
 
 # Create logs directory
 config.LOGS_DIR.mkdir(parents=True, exist_ok=True)
-log_path = config.LOGS_DIR / "test_results.jsonl"
+log_path = config.LOGS_DIR / "test_results.json"
 
 # Clear existing log
 if log_path.exists():
@@ -69,4 +69,6 @@ for i in range(15):
           f"Entity={entity_sim:.1%}, Crime={crime_sim:.1%} {status}")
 
 print(f"\n✅ Sample data created: {log_path}")
-print(f"\nNow run: python test_performance/plot_elbow.py\n")
+print(f"\nNow run:")
+print(f"  python test_performance/plot_entity.py")
+print(f"  python test_performance/plot_crime.py\n")

@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import test_performance.config as config
 
 # Load test results
-log_path = config.LOGS_DIR / "test_results.jsonl"
+log_path = config.LOGS_DIR / "test_results.json"
 
 if not log_path.exists():
     print(f"No test results found at {log_path}")

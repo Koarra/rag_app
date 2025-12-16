@@ -5,7 +5,7 @@ This directory contains automated performance testing for the risk analysis step
 ## Overview
 
 The performance testing system:
-- Runs `step5_analyze_risks.py` on test articles
+- Runs `scripts/05_analyze_risks.py` on test articles
 - Compares outputs against reference "golden" outputs
 - Calculates similarity metrics using Jaccard similarity
 - Logs results and determines pass/fail based on thresholds
@@ -417,14 +417,14 @@ The directories will be created automatically when you run the tests for the fir
 
 ### 3. Create Reference Outputs
 
-Run step5 manually on each test article to create reference outputs when you're confident the results are correct:
+Run 05_analyze_risks.py manually on each test article to create reference outputs when you're confident the results are correct:
 
 ```bash
 # Set the test data path (if using custom location)
 export RAG_APP_TEST_DATA_PATH="/your/custom/path"
 
 # Process article1
-python step5_analyze_risks.py /home/user/rag_app_test_data/test_articles/article1/outputs
+python scripts/05_analyze_risks.py /home/user/rag_app_test_data/test_articles/article1/outputs
 
 # Copy the generated risk_assessment.json as reference
 cp /home/user/rag_app_test_data/test_articles/article1/outputs/risk_assessment.json \
@@ -561,7 +561,7 @@ Shows entities where crime classifications differ:
 
 ## Log Format
 
-Results are logged to `logs/test_results.jsonl` (one JSON object per line):
+Results are logged to `logs/test_results.json` (one JSON object per line):
 
 ```json
 {
@@ -748,26 +748,29 @@ Configuration settings:
 
 ### `run_test.py`
 Main test runner:
-- Executes step5 for each article
+- Executes scripts/05_analyze_risks.py for each article
 - Loads reference outputs
 - Compares and calculates metrics
-- Logs results
+- Logs results to test_results.json
 - Reports pass/fail
 
 ### `plot_entity.py`
 Entity detection performance visualization:
+- Reads from logs/test_results.json
 - Plots entity similarity over time
 - Shows threshold line and pass/fail zones
 - Saves to daily_outputs/entity_performance.png
 
 ### `plot_crime.py`
 Crime classification performance visualization:
+- Reads from logs/test_results.json
 - Plots crime similarity over time
 - Shows threshold line and pass/fail zones
 - Saves to daily_outputs/crime_performance.png
 
 ### `analyze_thresholds.py`
 Statistical analysis tool for threshold justification:
+- Reads from logs/test_results.json
 - Calculates mean, median, std deviation, percentiles
 - Recommends conservative, moderate, and lenient thresholds
 - Analyzes current threshold effectiveness

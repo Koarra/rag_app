@@ -1,25 +1,13 @@
-"""
-Compare risk assessment outputs between reference and current runs.
-Implements similarity metrics for entity detection and crime classification.
-"""
-
 from typing import Dict, List, Set
 
 
 def normalize_entity_key(entity: Dict) -> str:
-    """Create unique key for entity matching"""
     entity_name = entity.get('entity_name', '').lower().strip()
     entity_type = entity.get('entity_type', 'UNKNOWN').lower().strip()
     return f"{entity_name}|{entity_type}"
 
 
 def calculate_entity_similarity(ref_keys: Set[str], cur_keys: Set[str]) -> float:
-    """
-    Calculate Jaccard similarity for entity sets.
-
-    Returns:
-        float: Similarity score between 0.0 and 1.0
-    """
     if not ref_keys and not cur_keys:
         return 1.0
 
@@ -29,16 +17,6 @@ def calculate_entity_similarity(ref_keys: Set[str], cur_keys: Set[str]) -> float
 
 
 def calculate_crime_similarity(ref_entities: Dict, cur_entities: Dict) -> float:
-    """
-    Calculate average Jaccard similarity for crimes of matched entities.
-
-    Args:
-        ref_entities: Dictionary of reference entities keyed by normalized key
-        cur_entities: Dictionary of current entities keyed by normalized key
-
-    Returns:
-        float: Average crime similarity score between 0.0 and 1.0
-    """
     matched_keys = set(ref_entities.keys()) & set(cur_entities.keys())
 
     if not matched_keys:
@@ -58,12 +36,6 @@ def calculate_crime_similarity(ref_entities: Dict, cur_entities: Dict) -> float:
 
 
 def get_crime_details(ref_entities: Dict, cur_entities: Dict, matched_keys: Set[str]) -> List[Dict]:
-    """
-    Get detailed crime comparison for matched entities.
-
-    Returns:
-        List of dictionaries with crime discrepancies for each entity
-    """
     details = []
 
     for key in matched_keys:
@@ -83,16 +55,6 @@ def get_crime_details(ref_entities: Dict, cur_entities: Dict, matched_keys: Set[
 
 
 def compare_outputs(reference: Dict, current: Dict) -> Dict:
-    """
-    Compare reference and current outputs, return detailed metrics.
-
-    Args:
-        reference: Reference risk assessment JSON
-        current: Current risk assessment JSON
-
-    Returns:
-        Dictionary with similarity metrics and detailed breakdown
-    """
     # Normalize entities for comparison
     ref_entities = {
         normalize_entity_key(e): e
