@@ -630,6 +630,75 @@ Tests will fail (exit code 1) if similarity drops below thresholds, preventing r
 
 **Note:** Make sure your CI environment has access to the test data directory, or configure it to use a CI-specific location.
 
+## Visualizing Performance Trends with Elbow Plots
+
+### What are Elbow Plots?
+
+Elbow plots visualize how performance metrics evolve over time, helping you identify:
+- **Performance trends**: Are metrics improving or degrading?
+- **Elbow points**: Significant changes where performance sharply improved or degraded
+- **Threshold violations**: When metrics fall below acceptance thresholds
+- **Per-article patterns**: How individual articles perform over time
+
+### Generating Elbow Plots
+
+After running multiple performance tests, generate the visualization:
+
+```bash
+# Generate plot (saved to daily_outputs/performance_plot.png)
+python test_performance/plot_elbow.py
+```
+
+The plot shows:
+- Entity and crime similarity in two subplots
+- Metric values over time with connecting lines
+- Red dashed threshold lines showing pass/fail boundaries
+- Grid for easy reading of values
+
+### Reading the Plot
+
+**What to look for:**
+- **Above red line**: Performance is passing
+- **Below red line**: Performance is failing
+- **Sudden drops**: May indicate prompt changes, model updates, or LLM API changes
+- **Gradual trends**: Shows whether performance is improving or degrading over time
+- **Elbow points**: Sharp changes in the trend line
+
+### Example Use Cases
+
+**Track performance over time:**
+```bash
+# Run tests regularly
+python test_performance/run_test.py
+
+# Generate plot to see trends
+python test_performance/plot_elbow.py
+```
+
+### Creating Sample Data for Testing
+
+To test the elbow plot functionality without running actual tests:
+
+```bash
+# Generate 15 sample test runs with realistic performance variations
+python test_performance/create_sample_data.py
+```
+
+This creates sample data showing:
+- Good performance (days 1-5)
+- Performance degradation (days 6-10)
+- Recovery (days 11-15)
+
+### Dependencies
+
+Elbow plots require additional Python packages:
+
+```bash
+pip install matplotlib numpy
+```
+
+These are included in `requirements.txt` for the project.
+
 ## Files Description
 
 ### `compare_outputs.py`
@@ -652,3 +721,14 @@ Main test runner:
 - Compares and calculates metrics
 - Logs results
 - Reports pass/fail
+
+### `plot_elbow.py`
+Simple script that:
+- Reads test results from logs/test_results.jsonl
+- Creates two subplots showing entity and crime similarity over time
+- Saves plot to daily_outputs/performance_plot.png
+
+### `create_sample_data.py`
+Generates 15 sample test runs with realistic performance patterns:
+- Good performance → drop → recovery
+- Useful for testing and demonstration
