@@ -630,50 +630,82 @@ Tests will fail (exit code 1) if similarity drops below thresholds, preventing r
 
 **Note:** Make sure your CI environment has access to the test data directory, or configure it to use a CI-specific location.
 
-## Visualizing Performance Trends with Elbow Plots
+## Performance Visualization and Threshold Analysis
 
-### What are Elbow Plots?
+### Separate Plots for Each Metric
 
-Elbow plots visualize how performance metrics evolve over time, helping you identify:
-- **Performance trends**: Are metrics improving or degrading?
-- **Elbow points**: Significant changes where performance sharply improved or degraded
-- **Threshold violations**: When metrics fall below acceptance thresholds
-- **Per-article patterns**: How individual articles perform over time
+Each metric has its own dedicated plot for focused analysis:
 
-### Generating Elbow Plots
+**Entity Detection Performance:**
+```bash
+python test_performance/plot_entity.py
+```
+- Shows entity similarity over time
+- Saved to: `daily_outputs/entity_performance.png`
+- Green shaded area = passing, red = failing
 
-After running multiple performance tests, generate the visualization:
+**Crime Classification Performance:**
+```bash
+python test_performance/plot_crime.py
+```
+- Shows crime similarity over time
+- Saved to: `daily_outputs/crime_performance.png`
+- Green shaded area = passing, red = failing
+
+### Justifying Threshold Values
+
+Before setting thresholds, analyze your historical data:
 
 ```bash
-# Generate plot (saved to daily_outputs/performance_plot.png)
-python test_performance/plot_elbow.py
+python test_performance/analyze_thresholds.py
 ```
 
-The plot shows:
-- Entity and crime similarity in two subplots
-- Metric values over time with connecting lines
-- Red dashed threshold lines showing pass/fail boundaries
-- Grid for easy reading of values
+This provides:
+- **Statistical summary**: mean, median, std deviation, min/max
+- **Percentile analysis**: P10, P25, P50, P75, P90
+- **Threshold recommendations**:
+  - **Conservative** (mean - 1σ): Catches most issues, ~84% acceptance
+  - **Moderate** (P25): Balanced approach, ~75% acceptance
+  - **Lenient** (P10): Only major regressions, ~90% acceptance
+- **Current threshold analysis**: How your current threshold compares
 
-### Reading the Plot
-
-**What to look for:**
-- **Above red line**: Performance is passing
-- **Below red line**: Performance is failing
-- **Sudden drops**: May indicate prompt changes, model updates, or LLM API changes
-- **Gradual trends**: Shows whether performance is improving or degrading over time
-- **Elbow points**: Sharp changes in the trend line
-
-### Example Use Cases
-
-**Track performance over time:**
-```bash
-# Run tests regularly
-python test_performance/run_test.py
-
-# Generate plot to see trends
-python test_performance/plot_elbow.py
+**Example Output:**
 ```
+ENTITY DETECTION
+================================================================
+Mean:              88.5%
+Median (P50):      89.2%
+Std Deviation:     4.3%
+
+THRESHOLD RECOMMENDATIONS:
+  Conservative (mean - 1σ): 84.2%
+    → Use if you want to catch most performance degradations
+
+  Moderate (25th percentile): 86.1%
+    → Use for balanced sensitivity
+
+  Lenient (10th percentile): 79.3%
+    → Use if you only want to catch major regressions
+
+CURRENT THRESHOLD: 80.0%
+  Pass rate: 14/15 (93%)
+  ✅ Moderate - most runs pass
+```
+
+### Setting Thresholds Based on Analysis
+
+After running the analysis, update `test_performance/config.py`:
+
+```python
+# Example: Using moderate thresholds (recommended)
+ENTITY_SIMILARITY_THRESHOLD = 0.86  # P25 from analysis
+CRIME_SIMILARITY_THRESHOLD = 0.82   # P25 from analysis
+```
+
+**Choosing the Right Threshold:**
+- **Conservative**: Use when accuracy is critical, can tolerate false alarms
+- **Moderate**: Best for most use cases - balances detection and stability
+- **Lenient**: Use when you want stable CI/CD, only catch major issues
 
 ### Creating Sample Data for Testing
 
@@ -722,11 +754,24 @@ Main test runner:
 - Logs results
 - Reports pass/fail
 
-### `plot_elbow.py`
-Simple script that:
-- Reads test results from logs/test_results.jsonl
-- Creates two subplots showing entity and crime similarity over time
-- Saves plot to daily_outputs/performance_plot.png
+### `plot_entity.py`
+Entity detection performance visualization:
+- Plots entity similarity over time
+- Shows threshold line and pass/fail zones
+- Saves to daily_outputs/entity_performance.png
+
+### `plot_crime.py`
+Crime classification performance visualization:
+- Plots crime similarity over time
+- Shows threshold line and pass/fail zones
+- Saves to daily_outputs/crime_performance.png
+
+### `analyze_thresholds.py`
+Statistical analysis tool for threshold justification:
+- Calculates mean, median, std deviation, percentiles
+- Recommends conservative, moderate, and lenient thresholds
+- Analyzes current threshold effectiveness
+- Provides data-driven guidance for setting KPI thresholds
 
 ### `create_sample_data.py`
 Generates 15 sample test runs with realistic performance patterns:
