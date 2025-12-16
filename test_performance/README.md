@@ -642,87 +642,37 @@ Elbow plots visualize how performance metrics evolve over time, helping you iden
 
 ### Generating Elbow Plots
 
-After running multiple performance tests, generate visualizations:
+After running multiple performance tests, generate the visualization:
 
 ```bash
-# Generate all plot types
+# Generate plot (saved to daily_outputs/performance_plot.png)
 python test_performance/plot_elbow.py
-
-# Generate specific plot types
-python test_performance/plot_elbow.py --type separate   # Entity and Crime in separate subplots
-python test_performance/plot_elbow.py --type combined   # Both metrics on one plot
-python test_performance/plot_elbow.py --type articles   # Per-article breakdown
-
-# Show plots interactively instead of saving
-python test_performance/plot_elbow.py --show
-
-# Save to custom directory
-python test_performance/plot_elbow.py --output-dir ./my_plots/
 ```
 
-### Plot Types
+The plot shows:
+- Entity and crime similarity in two subplots
+- Metric values over time with connecting lines
+- Red dashed threshold lines showing pass/fail boundaries
+- Grid for easy reading of values
 
-#### 1. Performance Trends (Separate)
-Shows entity and crime similarity in separate subplots with:
-- Metric values over time
-- Threshold lines (red dashed)
-- Significant change points marked with orange stars
+### Reading the Plot
 
-#### 2. Combined Metrics
-Both metrics on a single plot for easy comparison:
-- Entity similarity (blue circles)
-- Crime similarity (purple squares)
-- Individual threshold lines for each metric
-
-#### 3. Article Breakdown
-Individual plots for each test article showing:
-- How specific articles perform over time
-- Which articles consistently pass/fail
-- Articles that may need reference updates
-
-### Reading the Plots
-
-**Interpreting Results:**
-- **Above threshold**: Performance is acceptable (green zone)
-- **Below threshold**: Performance needs attention (red zone)
-- **Orange stars**: Significant changes in performance (elbow points)
-- **Trend lines**: Overall direction of performance
-
-**Common Patterns:**
-- **Sudden drop**: May indicate prompt changes, model updates, or LLM API changes
-- **Gradual decline**: Could suggest prompt drift or data quality issues
-- **Recovery**: Shows improvement after fixes or adjustments
-- **Stable**: Consistent performance over time (ideal)
+**What to look for:**
+- **Above red line**: Performance is passing
+- **Below red line**: Performance is failing
+- **Sudden drops**: May indicate prompt changes, model updates, or LLM API changes
+- **Gradual trends**: Shows whether performance is improving or degrading over time
+- **Elbow points**: Sharp changes in the trend line
 
 ### Example Use Cases
 
-**1. Detect Model Regressions**
+**Track performance over time:**
 ```bash
-# Run tests before and after prompt changes
+# Run tests regularly
 python test_performance/run_test.py
-# Make prompt changes
-# ...
-python test_performance/run_test.py
-# Generate plots to compare
+
+# Generate plot to see trends
 python test_performance/plot_elbow.py
-```
-
-**2. Track Long-term Performance**
-```bash
-# Run nightly in CI/CD
-0 2 * * * cd /path/to/rag_app && python test_performance/run_test.py
-
-# Weekly review of trends
-python test_performance/plot_elbow.py --output-dir ./weekly_reports/
-```
-
-**3. Identify Problematic Articles**
-```bash
-# Generate article breakdown
-python test_performance/plot_elbow.py --type articles
-
-# Review which articles consistently fail
-# Update reference outputs or investigate data issues
 ```
 
 ### Creating Sample Data for Testing
@@ -730,26 +680,14 @@ python test_performance/plot_elbow.py --type articles
 To test the elbow plot functionality without running actual tests:
 
 ```bash
-# Generate 10 sample test runs with realistic performance variations
+# Generate 15 sample test runs with realistic performance variations
 python test_performance/create_sample_data.py
-
-# Generate more runs
-python test_performance/create_sample_data.py --runs 20
-
-# Clear existing data and start fresh
-python test_performance/create_sample_data.py --clear --runs 15
 ```
 
-The sample data includes:
-- Realistic performance variations (80-90% similarity)
-- A simulated performance degradation around mid-point (elbow point)
-- Recovery trend showing improvement
-- Per-article variations
-
-This is useful for:
-- Testing plot functionality
-- Demonstrating the tool to stakeholders
-- Understanding what different performance patterns look like
+This creates sample data showing:
+- Good performance (days 1-5)
+- Performance degradation (days 6-10)
+- Recovery (days 11-15)
 
 ### Dependencies
 
@@ -785,17 +723,12 @@ Main test runner:
 - Reports pass/fail
 
 ### `plot_elbow.py`
-Visualization tool for performance trends:
-- `load_test_results()`: Loads historical test data from logs
-- `extract_metrics()`: Extracts timestamps and similarity metrics
-- `calculate_elbow_points()`: Identifies significant performance changes
-- `plot_performance_trends()`: Creates separate plots for entity/crime metrics
-- `plot_combined_metrics()`: Creates combined plot for comparison
-- `plot_article_breakdown()`: Creates per-article performance plots
-- `print_summary()`: Displays statistical summary of results
+Simple script that:
+- Reads test results from logs/test_results.jsonl
+- Creates two subplots showing entity and crime similarity over time
+- Saves plot to daily_outputs/performance_plot.png
 
 ### `create_sample_data.py`
-Sample data generator for testing and demonstration:
-- Generates realistic test results with performance variations
-- Simulates performance degradation and recovery patterns
-- Creates per-article data for comprehensive testing
+Generates 15 sample test runs with realistic performance patterns:
+- Good performance → drop → recovery
+- Useful for testing and demonstration
