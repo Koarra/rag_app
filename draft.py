@@ -1,21 +1,21 @@
-This document describes the testing pipeline architecture that processes 10 articles provided by the business. The system evaluates entity extraction and labeling accuracy through a multi-stage workflow.
-The pipeline consists of four main components that process articles sequentially to evaluate model performance:
-
-Monthly Scheduler - The monthly scheduler initiates the testing process and feeds articles into the test runner component.
-Test Runner - The test runner performs two key operations:
-• Loads each test article
-• Calls the Streamlit LLM endpoint to process the article
-Comparison Engine - The comparison engine validates the model output by:
-• Loading the expected output (JSON format containing entities flagged and labels)
-• Comparing the extracted entities and their labels against the expected results
-Threshold Checker - The threshold checker evaluates model performance using three key metrics:
-• Entity match rate
-• Label accuracy per entity
-• Overall F1/precision/recall
-
-Performance Evaluation
-The threshold performance component determines the overall system health based on a 90% threshold:
-• Above threshold (90%): Indicates good performance
-• Below threshold (90%): Indicates bad performance and requires attention
-Data Flow Summary
-The system processes 10 articles monthly through a sequential pipeline that validates entity extraction accuracy. Each stage builds on the previous one, ultimately determining whether the model meets the 90% performance threshold.
+def calculate_crime_similarity(ref_entities: Dict, cur_entities: Dict) -> float:
+    total_matched_crimes = 0
+    total_reference_crimes = 0
+    
+    # Loop through ALL reference entities (not just matched ones)
+    for key, ref_entity in ref_entities.items():
+        ref_crimes = set(ref_entity.get('crimes_flagged', []))
+        total_reference_crimes += len(ref_crimes)
+        
+        # Check if entity exists in current output
+        if key in cur_entities:
+            cur_crimes = set(cur_entities[key].get('crimes_flagged', []))
+            matched_crimes = ref_crimes & cur_crimes
+            total_matched_crimes += len(matched_crimes)
+        # else: entity missing → 0 matched crimes (implicit)
+    
+    # Calculate recall: matched / reference
+    if total_reference_crimes == 0:
+        return 1.0  # No crimes to detect
+    
+    return total_matched_crimes / total_reference_crimes
