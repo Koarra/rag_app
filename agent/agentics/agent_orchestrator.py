@@ -7,7 +7,7 @@ import logging
 import os
 from glob import glob
 
-from constants import OUTPUT_FOLDER
+from constants import OUTPUT_FOLDER, OU_CODE_DATA_PATH
 from output_writer import output_writer
 from edd_agent.edd_text_parser import edd_text_parser
 from edd_agent.edd_assessment_agent_output import edd_assessment_agent_output
@@ -132,7 +132,7 @@ class agent_orchestrator:
             for partner in self.edd_case.get("total_wealth_composition", [])
         ]
         edd_name = self.edd_case["contractual_partner_information"]["name"]
-        ou_code_mapped = resolve_ou_mapping(self.edd_case, ou_code_data_path=None)
+        ou_code_mapped = resolve_ou_mapping(self.edd_case, ou_code_data_path=OU_CODE_DATA_PATH)
 
         # Fuzzy match KYC partners to EDD partners
         self.partner_mappings = match_and_save_partners(
