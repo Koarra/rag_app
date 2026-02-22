@@ -1,228 +1,271 @@
 # ============================================
-# Section 7: Remarks on total asset and asset composition
+# Section 11.2: Consistency Checks within the KYC: contradictory information check 1 vs rest
 # ============================================
-logger.info("START SECTION7: remarks on total assets and assets composition")
-if partner_info.kyc_dataset["client_type"] == "Natural Person":
-    logger.info("instance is individual")
+logger.info("START SECTION 11.2: Consistency checks within the KYC: contradictory information checks")
+results_contradiction = {}
+
+logger.info(f"Starting contradiction checks for partner: {partner_name}")
+logger.info(f"Number of fields to check: {len(kyc_dict)}")
+
+for field_name, field_value in kyc_dict.items():
+    logger.info(f"Running contradiction check for field: {field_name}")
+    other_fields = {k: v for k, v in kyc_dict.items() if k != field_name}
+    # TODO HERE
+    response_llm_contradiction_checks = contradiction_checks(
+        field_value, other_fields
+    )
+    logger.info(f"Contradiction check result for {field_name}: {response_llm_contradiction_checks}")
+    results_contradiction[f"{field_name}_vs_rest"] = (
+        response_llm_contradiction_checks
+    )
+
+is_contradiction = any(
+    result["contradictory"].lower() == "true"
+    and result["confidence_level"] > 0.8
+    for result in results_contradiction.values()
+)
+logger.info(f"Overall contradiction detected: {is_contradiction}")
+
+kyc_checks_output["consistency_checks_within_kyc_contradiction_checks"][
+    "status"
+] &= not is_contradiction
+kyc_checks_output["consistency_checks_within_kyc_contradiction_checks"][
+    "reason"
+] += f"\n\n**{partner_name}***"
+kyc_checks_output["consistency_checks_within_kyc_contradiction_checks"][
+    "reason"
+] += "\n**KYC contradiction check**:"
+
+for field_name, result in results_contradiction.items():
     logger.info(
-        f"KYC_TOTAL_ASSETS : {partner_info.kyc_dataset.get('total_assets', {}).get('total_assets')}"
+        f"Field: {field_name} | Contradictory: {result['contradictory']} | "
+        f"Confidence: {result['confidence_level']:.2%} | Reasoning: {result['reasoning']}"
     )
-    logger.info(
-        f"KYC_TOTAL_ASSETS remarks: {partner_info.kyc_dataset.get('total_assets', {}).get('description')}"
-    )
-
-    kyc_total_assets_str = (
-        str(partner_info.kyc_dataset.get("total_assets", {}).get("total_assets"))
-        if partner_info.kyc_dataset.get("total_assets", {}).get("total_assets")
-        else "No kyc total assets text extracted"
-    )
-    kyc_total_remarks_str = (
-        str(partner_info.kyc_dataset.get("total_assets", {}).get("description"))
-        if partner_info.kyc_dataset.get("total_assets", {}).get("description")
-        else "No kyc total assets remarks text extracted"
-    )
-
-    data_check_composition_of_ta = check_composition_of_total_assets(
-        kyc_total_remarks_str
-    )
-    save_json(
-        data_check_composition_of_ta,
-        output_folder,
-        folder_name,
-        "section7_kyc_data_check_composition_of_total_assets.json",
-    )
-    logger.info("intermediate data saved: data check composition of total assets")
-
-    data_kyc_remarks_comp_total_assets = compare_remarks_with_total_assets(
-        kyc_total_remarks_str, kyc_total_assets_str
-    )
-    save_json(
-        data_kyc_remarks_comp_total_assets,
-        output_folder,
-        folder_name,
-        "section7_kyc_remarks_composition_total_assets.json",
-    )
-    logger.info(
-        "Intermediate data saved: data kyc remarks composition of total assets"
-    )
-
-    remarks_sufficiency_checks = data_kyc_remarks_comp_total_assets[
-        "sufficient_explanation"
-    ]
-    remarks_sufficiency_checks_reasoning = data_kyc_remarks_comp_total_assets[
-        "reasoning"
-    ]
-    total_assets_remarks = data_check_composition_of_ta["total_assets_remarks"]
-
-    if not kyc_total_assets or kyc_total_assets == 0:
-        percentage_total_remarks_vs_total_assets = 0
-        kyc_checks_output["remarks_on_total_assets_and_composition"][
-            "status"
-        ] = False
-        kyc_checks_output["remarks_on_total_assets_and_composition"][
-            "reason"
-        ] += f"\n\n**{partner_name}** \nThe total assets denominator is null or zero, cannot calculate percentages.\n\n"
-        logger.info("Cannot calculate percentages - denominator is null/zero")
-    else:
-        percentage_total_remarks_vs_total_assets = (
-            total_assets_remarks / kyc_total_assets
-        )
-        percentage_validation = 0.8
-
-        kyc_checks_output["remarks_on_total_assets_and_composition"][
-            "reason"
-        ] += f"\n\n**{partner_name}** \n**7.1**: The amount mentioned in the remarks on total assets is {total_assets_remarks :0,.2f}, representing **{percentage_total_remarks_vs_total_assets:.2%}** of the total assets indicated in the KYC ({kyc_total_assets :0,.2f})."
-        followup = f"The remarks on total assets {'do not ' if not remarks_sufficiency_checks else ''}fully explain or support the total assets section."
-        kyc_checks_output["remarks_on_total_assets_and_composition"][
-            "reason"
-        ] += f"\n\n**7.2**: {followup}\n"
-
-        if percentage_total_remarks_vs_total_assets >= percentage_validation:
-            logger.info(
-                f"successfull check: percentage of specific asset fields composing to total assets >= 0.8: {percentage_of_specific_asset_fields_explaining_total_assets}"
-            )
-            logger.info(
-                f"successfull check: percentage of total assets with known origin >= 0.8: {percentage_of_total_assets_with_known_origin}"
-            )
-        else:
-            logger.info("Low percentage of total asset verification")
-            kyc_checks_output["remarks_on_total_assets_and_composition"][
-                "status"
-            ] = False
-
-        if not remarks_sufficiency_checks:
-            kyc_checks_output["remarks_on_total_assets_and_composition"][
-                "status"
-            ] = False
-
-        kyc_checks_output["remarks_on_total_assets_and_composition"][
-            "reason"
-        ] += f"**Reasoning**: {remarks_sufficiency_checks_reasoning}\n"
-else:
-    logger.info("instance is a legal entity")
-    pass
-
-# ============================================
-# Section 8: Activity
-# ============================================
-logger.info("START SECTION 8: Activity -> WIP as we need to add LLM check")
-if partner_info.kyc_dataset["client_type"] == "Natural Person":
-    activities = partner_info.kyc_dataset.get("corporate_activity")
-else:
-    activities = partner_info.kyc_dataset.get("activities")
-
-is_valid = activities is not None and len(activities) > 0
-if is_valid:
-    kyc_checks_output["activity"][
+    kyc_checks_output["consistency_checks_within_kyc_contradiction_checks"][
         "reason"
-    ] += f"\n\n**{partner_name}**: Activity field(s) defined. \n"
-else:
-    kyc_checks_output["activity"]["status"] = False
-    kyc_checks_output["activity"][
-        "reason"
-    ] += f"\n\n**{partner_name}**:  Activity field(s) not defined. \n"
+    ] += (
+        f"\n\n{field_name.replace('_', ' ').capitalize()}** - "
+        + (
+            "contradictions present.\n"
+            if result["contradictory"].lower() == "true"
+            else "no contradictions identified.\n"
+        )
+        + f"**Confidence level**: {result['confidence_level']:.2%}\n"
+        + f"**Reasoning**: {result['reasoning']}\n"
+    )
+
+save_json(
+    results_contradiction,
+    output_folder,
+    folder_name,
+    "section11_2_kyc_data_check_kyc_contradiction.json",
+)
+logger.info("Intermediate data saved: kyc contradiction checks")
 
 # ============================================
-# Section 10: Family situation
+# Section 13: SCAP flag checks
 # ============================================
-logger.info("START SECTION 10: family situation")
-if partner_info.kyc_dataset["client_type"] == "Natural Person":
-    family_situation_entries = partner_info.kyc_dataset.get(
-        "family_situation_entries", []
-    )
-    family_situation_remarks = (
-        partner_info.kyc_dataset.get("family_situation_remarks")
-        or ""
-    )
+logger.info("START SECTION 13: SCAP flag checks")
+logger.info(f"Processing SCAP flags for partner: {partner_name}")
 
-    family_situation_collapsed = "\n".join(
-        [
-            ", ".join([f"{k}: {v}" for k, v in entry.items()])
-            for entry in family_situation_entries
-        ]
-    )
-    family_situation_collapsed += family_situation_remarks
-    family_situation_collapsed = family_situation_collapsed.strip()
+risk_flags_and_corrob = KYCDataHandler("", [], partner_info.kyc_dataset)
+logger.info(f"SCAP 1 result: {risk_flags_and_corrob.result_scap1_short}")
+logger.info(f"SCAP 2 result: {risk_flags_and_corrob.result_scap2_short}")
 
-    extracted_family = extract_family_members(
-        str(partner_info.kyc_dataset)
-    )
+kyc_checks_output["scap_flags"]["reason"] += f"\n\n**{partner_name}**\n"
+scap_results = {
+    "SCAP 1": str(risk_flags_and_corrob.result_scap1_short),
+    "SCAP 2": str(risk_flags_and_corrob.result_scap2_short),
+}
 
-    formatted_family = [
-        f"- Name: {x['name']}, Relation: {x['relation']}, SoW Relevant: {x['source_of_wealth_relevant']}, Politically Exposed: {x['politically_exposed']}"
-        for x in extracted_family
-    ]
-    family_links = "\n" + "\n".join(formatted_family)
-
-    tmp = f"Extracted family members with potential links to SoW/PEP: {family_links if len(family_links.strip()) > 0 else 'none.'}"
-    headline = None
-
-    if len(family_situation_collapsed) > 0:
-        relevant_extracted_family = [
-            (x, fuzz.WRatio(x, family_situation_collapsed))
-            for x in extracted_family
-            if x["source_of_wealth_relevant"] == "yes"
-            or x["politically_exposed"] == "yes"
-        ]
-
-        cross_checking_needed = [
-            x
-            for x, ratio in relevant_extracted_family
-            if ratio < 80
-        ]
-
-        explicit_mentions = ", ".join(
-            [
-                x["name"]
-                for x, ratio in relevant_extracted_family
-                if ratio >= 80
-            ]
-        )
-        llm_cross_checks = ", ".join(
-            [x["name"] for x in cross_checking_needed]
-        )
-
-        tmp += f"\n\nPersons explicitly mentioned in the family situation section: {explicit_mentions if len(explicit_mentions.strip()) > 0 else 'none'}."
-        tmp += f"\n\nPersons needing an LLM cross check to confirm explicit mention in the family situation section: {llm_cross_checks if len(llm_cross_checks.strip()) > 0 else 'none'}.\n"
-        check_ok = True
-        for x in cross_checking_needed:
-            llm_response = cross_check(family_situation_collapsed, x["name"])
-            save_json(
-                llm_response,
-                output_folder,
-                folder_name,
-                "section10kyc_family_situation.json",
-            )
-            tmp += f"- {x['name']}: Mentioned: {llm_response['Answer']}, Reasoning: {llm_response['Reasoning']}\n"
-            if llm_response["Answer"] != "Yes":
-                kyc_checks_output["family_situation"]["status"] = False
-                check_ok = False
-    else:
-        if len(extracted_family) > 0:
-            check_ok = False
-            kyc_checks_output["family_situation"]["status"] = False
-            headline = "the family section is empty, which is not permitted as SoW-related or PEP-relevant persons have been identified."
-        else:
-            check_ok = True
-            headline = "the family section is empty, which is permitted as no SoW-related or PEP-relevant persons have been identified."
-
-    if headline is not None:
-        kyc_checks_output["family_situation"][
+for scap_key, scap_value in scap_results.items():
+    logger.info(f"Evaluating {scap_key}: {scap_value}")
+    if scap_key in scap_value:
+        # Check if SCAP reported in EDD and flag if not
+        if (
+            scap_key == "SCAP 1"
+            and "SCAP-1" not in edd_parsed.get("risk_category", [])
+        ):
+            logger.info(f"{scap_key} found in KYC but not in EDD risk_category - flagging red")
+            kyc_checks_output["scap_flags"]["status"] = False
+        if (
+            scap_key == "SCAP 2"
+            and "SCAP-2" not in edd_parsed.get("risk_category", [])
+        ):
+            logger.info(f"{scap_key} found in KYC but not in EDD risk_category - flagging red")
+            kyc_checks_output["scap_flags"]["status"] = False
+            kyc_checks_output["scap_flags"]["reason"] += f"{scap_value}\n"
+    if "Missing information" in scap_value:
+        logger.info(f"{scap_key} has missing information - flagging red")
+        kyc_checks_output["scap_flags"]["status"] = False
+        kyc_checks_output["scap_flags"][
             "reason"
-        ] += f"\n\n**{partner_name}**: {headline}\n"
-    elif check_ok:
-        kyc_checks_output["family_situation"][
-            "reason"
-        ] += f"\n\n**{partner_name}**: the family section mentions all SoW-relevant and/or politically exposed persons, if any.\n"
-    else:
-        kyc_checks_output["family_situation"][
-            "reason"
-        ] += f"\n\n**{partner_name}**: the family section needs attention.\n"
+        ] += f"We are missing information about wealth creating activity to deduce {scap_key} relevance.\n"
 
-    if not (headline and check_ok):
-        tmp += "\n"
-        kyc_checks_output["family_situation"]["reason"] += tmp
-else:
-    kyc_checks_output["family_situation"][
+if (
+    "SCAP1" not in scap_results["SCAP 1"]
+    and "SCAP2" not in scap_results["SCAP 2"]
+):
+    logger.info("No SCAP flags detected")
+    kyc_checks_output["scap_flags"]["reason"] += "No SCAP flags detected.\n"
+
+logger.info(f"SCAP flags final status: {kyc_checks_output['scap_flags']['status']}")
+
+# ============================================
+# Section 14: SIAP flag checks
+# ============================================
+logger.info("START SECTION 14: SIAP flag checks")
+logger.info(f"Processing SIAP flags for partner: {partner_name}")
+
+kyc_checks_output["siap_flags"]["reason"] += f"\n\n**{partner_name}**\n"
+logger.info(f"SIAP results table shape: {risk_flags_and_corrob.siap_results_table.shape}")
+
+siap_items = risk_flags_and_corrob.siap_results_table[
+    risk_flags_and_corrob.siap_results_table.iloc[:, 1]
+    .astype(str)
+    .str.contains(
+        "Missing Information Node|SIAP EDD|Prohibited Relation", regex=True
+    )
+]
+logger.info(f"SIAP items requiring attention: {len(siap_items)}")
+
+if not siap_items.empty:
+    logger.info("SIAP items found - checking against EDD risk category")
+    kyc_checks_output["siap_flags"][
         "reason"
-    ] += f"\n\n**{partner_name}**: N/A (legal entity).\n"
+    ] += "There are SIAP items needing attention.\n"
+    # Only flag red in case EDD does not have the SIAP flag already
+    if "SIAP" not in edd_parsed.get("risk_category", []):
+        logger.info("SIAP not in EDD risk_category - flagging red")
+        kyc_checks_output["siap_flags"]["status"] = False
+    else:
+        logger.info("SIAP already present in EDD risk_category - not flagging red")
+else:
+    logger.info("No SIAP items requiring attention detected")
+    kyc_checks_output["siap_flags"][
+        "reason"
+    ] += "No SIAP activities detected.\n"
+
+tmp_title = "\n**LLM Processing Trace:**"
+tmp = ""
+col_names = ["Eligible SIAP Tree", "Findings"]
+for tree, findings in zip(
+    *[risk_flags_and_corrob.siap_results_table[x] for x in col_names]
+):
+    logger.info(f"Processing SIAP tree: {tree}")
+    tmp += f"\n**Eligible SIAP Category**: {tree}"
+    findings = (
+        findings.replace("**: :", ": :")
+        .replace("***", "\n- ")
+        .replace("Missing Information Node", "Missing Information")
+        .replace("NOT SIAP", "Not SIAP")
+    )
+    tmp += f"\n**Findings**: {findings}\n"
+
+kyc_checks_output["siap_flags"]["reason"] += tmp_title + (
+    tmp if len(tmp) > 0 else "\nN/A (no eligible SIAP trees were identified).\n"
+)
+logger.info(f"SIAP flags final status: {kyc_checks_output['siap_flags']['status']}")
+
+# ============================================
+# Section 11.1: Consistency Checks within the KYC
+# ============================================
+logger.info("START SECTION 11.1: Consistency checks within the KYC")
+# Role Holders sufficiency check
+quality_check_role_holders = "N/A (no DomCo, OpCo, trust, or foundation)."
+logger.info(f"Checking role holders for partner: {partner_name}")
+
+business_relationship_type = edd_parsed.get(
+    "type_of_business_relationship", {}
+).get("_type", "")
+logger.info(f"Business relationship type: {business_relationship_type}")
+
+# DomCo
+if "Domiciliary Company" in business_relationship_type:
+    logger.info("DomCo detected - checking role holders")
+    if (
+        edd_parsed.get("poa_list") is not None
+        and len(edd_parsed.get("role_holders_information", [])) > 1
+    ):
+        quality_check_role_holders = "contains at least one BO and one PoA."
+        logger.info("DomCo role holders check passed")
+    else:
+        quality_check_role_holders = (
+            " missing information about at least one BO and one PoA."
+        )
+        logger.info("DomCo role holders check failed - flagging red")
+        kyc_checks_output["consistency_checks_within_kyc"]["status"] = False
+
+# Trust
+if "Trust" in business_relationship_type:
+    logger.info("Trust detected - checking role holders")
+    if edd_parsed.get("poa_list") is not None and (
+        role in edd_parsed.get("type_of_business_relationship", {})
+        for role in ["trustee", "settlor", "beneficiary"]
+    ):
+        quality_check_role_holders = (
+            "contains at least one trustee, settlor, beneficiary and one PoA."
+        )
+        logger.info("Trust role holders check passed")
+    else:
+        quality_check_role_holders = " missing information about at least one trustee, settlor, beneficiary and one PoA."
+        logger.info("Trust role holders check failed - flagging red")
+        kyc_checks_output["consistency_checks_within_kyc"]["status"] = False
+
+# Foundation
+if "Foundation" in business_relationship_type:
+    logger.info("Foundation detected - checking role holders")
+    if edd_parsed.get("poa_list") is not None and (
+        role in edd_parsed.get("type_of_business_relationship", {})
+        for role in ["founder", "beneficiary"]
+    ):
+        quality_check_role_holders = (
+            "contains at least one founder, beneficiary and one PoA."
+        )
+        logger.info("Foundation role holders check passed")
+    else:
+        quality_check_role_holders = " missing information about at least one founder, beneficiary and one PoA."
+        logger.info("Foundation role holders check failed - flagging red")
+        kyc_checks_output["consistency_checks_within_kyc"]["status"] = False
+
+# OpCo
+if "Operating Company" in business_relationship_type:
+    logger.info("OpCo detected - checking role holders")
+    if edd_parsed.get("poa_list") is not None and (
+        "controlling person" in edd_parsed.get("type_of_business_relationship", {})
+    ):
+        quality_check_role_holders = (
+            "contains at least one controlling person and one PoA."
+        )
+        logger.info("OpCo role holders check passed")
+    else:
+        quality_check_role_holders = " missing information about at least one controlling person and one PoA."
+        logger.info("OpCo role holders check failed - flagging red")
+        kyc_checks_output["consistency_checks_within_kyc"]["status"] = False
+
+# PEP Quality Check
+logger.info("Running PEP quality check")
+quality_check_pep = "N/A (no PEP mention, no sensitivity documents attached)."
+if "PEP" in edd_parsed.get("risk_category", []) or pep_sensitivity_present:
+    logger.info("PEP detected - checking ASM number")
+    if "ASM" in edd_parsed.get("risk_category", []):
+        quality_check_pep = "PEP ASM number documented."
+        logger.info("ASM number found for PEP")
+    else:
+        quality_check_pep = "PEP ASM number not documented."
+        logger.info("ASM number missing for PEP")
+
+kyc_checks_output["consistency_checks_within_kyc"][
+    "reason"
+] += f"\n**Role holders sufficiency check**: {quality_check_role_holders}"
+kyc_checks_output["consistency_checks_within_kyc"][
+    "reason"
+] += f"\n\n**ASM Number presence check**: {quality_check_pep}"
+
+logger.info(
+    f"Section 11.1 final status: {kyc_checks_output['consistency_checks_within_kyc']['status']}"
+)
+
+kyc_checks_output["raw_data"] = raw_data
+logger.info("KYC checks processing complete - returning results")
+return kyc_checks_output, kyc_to_edd_partner_matches
