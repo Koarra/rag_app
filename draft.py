@@ -1,30 +1,21 @@
-def write_results(self):
-    logger.info("Writing final results")
-    self.writer = output_writer()
-    self.writer.create_output_folder()
+if kyc_profiles_output:
+    print(f"KYC top-level keys: {list(kyc_profiles_output.keys())}")
+    print(f"KYC type: {type(kyc_profiles_output)}")
+    
+    first_key = list(kyc_profiles_output.keys())[0]
+    first_value = kyc_profiles_output[first_key]
+    print(f"First key: {first_key}")
+    print(f"First value type: {type(first_value)}")
+    print(f"First value keys: {list(first_value.keys()) if isinstance(first_value, dict) else first_value}")
+    
+    if isinstance(first_value, dict):
+        second_key = list(first_value.keys())[0]
+        second_value = first_value[second_key]
+        print(f"Second level key: {second_key}")
+        print(f"Second level value type: {type(second_value)}")
+        print(f"Second level value: {second_value}")
 
-    # Merge KYC results across all partners
-    kyc_profiles_output = {}
-    for partner_name, checks in self.kyc_results.items():
-        for check_name, check_data in checks.items():
-            if check_name not in kyc_profiles_output:
-                # First partner - initialise the check
-                kyc_profiles_output[check_name] = check_data.copy()
-                kyc_profiles_output[check_name]["reason"] = (
-                    f"{partner_name}:\n{check_data['reason']}"
-                )
-            else:
-                # Subsequent partners - append reason and take worst status
-                kyc_profiles_output[check_name]["reason"] += (
-                    f"\n\n{partner_name}:\n{check_data['reason']}"
-                )
-                if not check_data["status"]:
-                    kyc_profiles_output[check_name]["status"] = False
-
-    self.writer.write_word_doc(
-        self.edd_result,
-        kyc_profiles_output,
-        self.case_number,
-        self.partner_mappings,
-        self.edd_case,
-    )
+    # Create KYC checks Header and table
+    kyc_heading = doc.add_heading("KYC Checks", level=2)
+    kyc_heading.alignment = 1  # Center the heading
+    self.create_table(doc, kyc_profiles_output, is_edd=False)
