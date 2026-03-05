@@ -50,18 +50,20 @@ class output_writer:
             return display_names_edd.get(key, key.replace("_", " ").capitalize())
 
     def create_kyc_table(self, doc: Document, kyc_profiles_output: dict):
-        """Create a single KYC table merging all partners' results.
+        """Create a single KYC table.
+
+        All sections use the last partner's data (most complete, since kyc_checks_output
+        is a shared object updated sequentially). Section 11.2 shows one subtable per partner.
 
         Args:
             doc: Document
             kyc_profiles_output: dict {partner_name: {check_key: {status, reason, display_name}}}
         """
-        # Use first partner as the reference for keys and display names
-        first_partner_checks = list(kyc_profiles_output.values())[0]
+        # Use last partner as the reference — it holds the most up-to-date shared checks
+        reference_checks = list(kyc_profiles_output.values())[-1]
         partner_names = list(kyc_profiles_output.keys())
-        skip_keys = set()
 
-        num_rows = sum(1 for k in first_partner_checks if k not in skip_keys)
+        num_rows = len(reference_checks)
         if num_rows == 0:
             return
 
@@ -78,32 +80,28 @@ class output_writer:
         for cell in table.columns[-1].cells:
             cell.width += original_width
 
-        i = 0
-        for key, first_value in first_partner_checks.items():
-            if key in skip_keys:
-                continue
-
+        for i, (key, value) in enumerate(reference_checks.items()):
             row_cells = table.rows[i].cells
-            i += 1
 
-            # Display name from first partner
+            # Display name
             display_name = (
-                first_value.get("display_name", key.replace("_", " ").capitalize())
-                if isinstance(first_value, dict)
+                value.get("display_name", key.replace("_", " ").capitalize())
+                if isinstance(value, dict)
                 else key.replace("_", " ").capitalize()
             )
             row_cells[1].add_paragraph().add_run(display_name).bold = True
 
-            # Status color from first partner
-            check_status = first_value.get("status", False) if isinstance(first_value, dict) else False
+            # Status color
+            check_status = value.get("status", False) if isinstance(value, dict) else False
             colour = RGBColor(0, 255, 0) if check_status else RGBColor(255, 0, 0)
-            first_reason = first_value.get("reason", "") if isinstance(first_value, dict) else str(first_value)
-            if first_reason == "Out of scope currently.":
+            reason_text = value.get("reason", "") if isinstance(value, dict) else str(value)
+            if reason_text == "Out of scope currently.":
                 colour = RGBColor(211, 211, 211)
             self.set_cell_color(row_cells[0], colour)
 
-            # Content cell
+            # Content
             if key == "consistency_checks_within_kyc_contradiction_checks":
+                # Section 11.2: one subtable per partner
                 cell = row_cells[2]
                 cell.add_paragraph("Please refer to the annex for LLM analysis details.\n")
                 for partner_name in partner_names:
@@ -120,15 +118,8 @@ class output_writer:
                     if checks:
                         self.add_subtable(cell, checks)
             else:
-                # Build combined reason from all partners
-                cell = row_cells[2]
-                for partner_name in partner_names:
-                    partner_value = kyc_profiles_output[partner_name].get(key, {})
-                    reason = partner_value.get("reason", "") if isinstance(partner_value, dict) else str(partner_value)
-                    print(f"[DEBUG] key={key}, partner={partner_name}, reason={reason!r}")
-                    if reason:
-                        cell.add_paragraph().add_run(f"{partner_name}:").bold = True
-                        self.write_bold_instances(cell, reason.strip())
+                # All other sections: use reference data only (shared across partners)
+                self.write_bold_instances(row_cells[2], reason_text.strip())
 
     def create_table(
         self,
@@ -136,13 +127,7 @@ class output_writer:
         processed_profile_output: dict,
         is_edd: bool = False,
     ):
-        """Populate the given document with EDD assessment results.
-
-        Args:
-            doc: Document
-            processed_profile_output: dict
-            is_edd: bool
-        """
+        """Populate the given document with EDD assessment results."""
         print(f"create_table called: is_edd={is_edd}, num_keys={len(processed_profile_output)}")
         cols = 2
         doc.add_paragraph()
@@ -213,7 +198,7 @@ class output_writer:
 
         for idx, elems in enumerate(values, start=1):
             for _cell, (k, v) in zip(sub_table.rows[idx].cells, elems.items()):
-                _cell.text = v.title().replace("_", " ")
+                _cell.text = str(v).title().replace("_", " ")
                 if _cell.text == "True":
                     self.set_cell_color(_cell, "#DC3939")
                 elif _cell.text == "False":
@@ -307,7 +292,6 @@ class output_writer:
         if kyc_profiles_output:
             kyc_heading = doc.add_heading("KYC Checks", level=2)
             kyc_heading.alignment = 1
-            # Single table built directly from all partners
             self.create_kyc_table(doc, kyc_profiles_output)
 
         if edd_profile_output:
