@@ -1,48 +1,63 @@
-import os
-import math
-from typing import Type, TypeVar, Union, Dict, Any
-from pydantic import BaseModel
-from langchain_openai import AzureChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+kyc_transactions = partner_info.kyc_dataset["transactions"]
+kyc_purpose_of_br = partner_info.kyc_dataset["purpose_of_br"]
 
-T = TypeVar("T", bound=BaseModel)
-
-AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT", "https://domino.risklab-ch.aks.azure.ubs.net/aice-openai/")
-
-model = AzureChatOpenAI(
-    model="gpt-4o",
-    azure_endpoint=AZURE_ENDPOINT,
-    azure_ad_token_provider=get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-    ),
-    temperature=0,
-    seed=0,
-    logprobs=True,
-    top_logprobs=5,
+kyc_transactions_str = (
+    str(kyc_transactions) if kyc_transactions else "No kyc transactions extracted"
+)
+kyc_purpose_of_br_str = (
+    str(kyc_purpose_of_br)
+    if kyc_purpose_of_br
+    else "No kyc purpose of br text extracted"
 )
 
-SYSTEM_MESSAGE = "You are a helpful assistant."
+# ✅ ADD THIS GUARD — before any LLM call
+if not kyc_transactions:
+    logger.info("check 3.1 skipped: no KYC transactions present")
+    purpose_of_br_result = PurposeOfBusinessRelationship(
+        sufficient_explanation=True,  # nothing to contradict, so pass
+        reasoning="Skipped: no KYC transactions found for this partner."
+    )
+    # still write the output so downstream code doesn't break
+    save_json(
+        purpose_of_br_result.json(),
+        output_folder,
+        folder_name,
+        section3_kyc_transactions_purpose_of_br,
+    )
+    kyc_checks_output["purpose_of_business_relationships"]["status"] = True
+    return  # or continue to check 3.2
+
+# --- only reaches here if transactions exist ---
+logger.info("check 3.1 started")
+purpose_of_business_relationship_prompt = (
+    COMPARE_TRANSACTIONS_PURPOSE_OF_BR_PROMPT.format(
+        kyc_purpose_of_br=kyc_purpose_of_br_str,
+        kyc_transactions=kyc_transactions_str,
+    )
+)
+purpose_of_br_result = run_compliance_check(
+    purpose_of_business_relationship_prompt, PurposeOfBusinessRelationship
+)
 
 
-def run_compliance_check(content: str, output_schema: Type[T] | None = None):
-    messages = [SystemMessage(content=SYSTEM_MESSAGE), HumanMessage(content=content)]
-
-    if output_schema is None:
-        response = model.invoke(messages)
-        logprobs = response.response_metadata.get("logprobs", {}).get("content", [])
-        return response.content, logprobs
-
-    return model.with_structured_output(output_schema).invoke(messages), None
 
 
-class QuantumPhysicsSummary(BaseModel):
-    explanation: str
 
 
-if __name__ == "__main__":
-    output, logprobs = run_compliance_check("Explain quantum physics in one sentence.")
-    print(output)
 
-    for token_info in logprobs:
-        print(f"{token_info['token']!r:20} {token_info['logprob']:.4f} ({math.exp(token_info['logprob']):.4f})")
+
+# Run once, reuse across checks 3.1 and 3.3
+if not kyc_transactions:
+    transaction_summary = CheckTransactionSummary(
+        transactions_exist=False,
+        transactions_details=[]
+    )
+else:
+    # call LLM to summarize (check 3.3)
+    transaction_summary = run_compliance_check(..., CheckTransactionSummary)
+
+# Now check 3.1 can safely branch
+if not transaction_summary.transactions_exist:
+    # skip with default result
+else:
+    # run full LLM check
